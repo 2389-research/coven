@@ -8,19 +8,6 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[dependencies]
-tokio.workspace = true
-anyhow.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-clap.workspace = true
-serde.workspace = true
-toml.workspace = true
-
-# fold-core = { workspace = true }
-# fold-pack = { workspace = true }
-
 [[bin]]
 name = "fold-agent"
 path = "src/main.rs"
@@ -28,3 +15,57 @@ path = "src/main.rs"
 [lib]
 name = "fold_agent"
 path = "src/lib.rs"
+
+[dependencies]
+# Internal crates
+fold-core.workspace = true
+fold-ssh.workspace = true
+fold-proto.workspace = true
+
+# Async
+tokio.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+
+# gRPC
+tonic.workspace = true
+prost.workspace = true
+
+# CLI
+clap.workspace = true
+
+# TUI
+ratatui.workspace = true
+crossterm.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Time
+chrono.workspace = true
+
+# Filesystem/Environment
+dirs.workspace = true
+dotenvy.workspace = true
+
+# URL
+url.workspace = true
+percent-encoding.workspace = true
+
+# Utilities
+uuid.workspace = true
+rand.workspace = true
+
+# LLM (for pack_tool)
+mux.workspace = true

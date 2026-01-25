@@ -981,13 +981,32 @@ name = "fold-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "chrono",
  "clap",
+ "crossterm",
+ "dirs",
+ "dotenvy",
+ "fold-core",
+ "fold-proto",
+ "fold-ssh",
+ "futures",
+ "mux",
+ "percent-encoding",
+ "prost",
+ "rand",
+ "ratatui",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
  "toml 0.8.23",
+ "tonic",
  "tracing",
  "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]
