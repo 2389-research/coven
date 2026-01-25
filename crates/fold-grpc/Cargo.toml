@@ -1,0 +1,19 @@
+# ABOUTME: gRPC client implementation for fold services
+# ABOUTME: Provides typed client for communicating with fold-gateway
+
+[package]
+name = "fold-grpc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tonic.workspace = true
+prost.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# fold-proto = { workspace = true }

@@ -1,0 +1,16 @@
+# ABOUTME: Protocol buffer definitions and generated code
+# ABOUTME: Shared protobuf types for fold gRPC communication
+
+[package]
+name = "fold-proto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+prost.workspace = true
+tonic.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true

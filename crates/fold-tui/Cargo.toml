@@ -1,0 +1,28 @@
+# ABOUTME: Terminal user interface for fold
+# ABOUTME: Interactive TUI for managing agents and viewing conversations
+
+[package]
+name = "fold-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+serde.workspace = true
+
+# fold-client = { workspace = true }
+
+[[bin]]
+name = "fold-tui"
+path = "src/main.rs"
+
+[lib]
+name = "fold_tui"
+path = "src/lib.rs"

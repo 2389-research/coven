@@ -1,0 +1,17 @@
+# ABOUTME: Core swarm types and traits
+# ABOUTME: Foundational abstractions for swarm coordination
+
+[package]
+name = "fold-swarm-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true

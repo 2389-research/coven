@@ -1,0 +1,14 @@
+# ABOUTME: SSH key management and authentication
+# ABOUTME: Handles Ed25519 key generation, storage, and signing
+
+[package]
+name = "fold-ssh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+ssh-key.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true

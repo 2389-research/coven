@@ -1,0 +1,67 @@
+# ABOUTME: Workspace root for the fold monorepo
+# ABOUTME: Consolidates all fold Rust crates into a single workspace
+
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/2389-research/fold"
+
+[workspace.dependencies]
+# Async
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+async-trait = "0.1"
+
+# gRPC
+tonic = { version = "0.12", features = ["tls-roots"] }
+prost = "0.13"
+tonic-build = "0.12"
+
+# SSH
+ssh-key = { version = "0.6", features = ["ed25519", "encryption"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# LLM
+mux = { git = "https://github.com/2389-research/mux-rs", branch = "main" }
+
+# Internal crates (uncomment as we migrate)
+# fold-proto = { path = "crates/fold-proto" }
+# fold-ssh = { path = "crates/fold-ssh" }
+# fold-grpc = { path = "crates/fold-grpc" }
+# fold-client = { path = "crates/fold-client" }
+# fold-pack = { path = "crates/fold-pack" }
+# fold-core = { path = "crates/fold-core" }
+# fold-agent = { path = "crates/fold-agent" }
+# fold-swarm = { path = "crates/fold-swarm" }
+# fold-swarm-backend = { path = "crates/fold-swarm-backend" }
+# fold-swarm-core = { path = "crates/fold-swarm-core" }
+# fold-tui = { path = "crates/fold-tui" }
+# fold-cli = { path = "crates/fold-cli" }

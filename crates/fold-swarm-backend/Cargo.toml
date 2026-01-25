@@ -1,0 +1,21 @@
+# ABOUTME: Swarm backend implementations
+# ABOUTME: Storage and persistence for swarm state
+
+[package]
+name = "fold-swarm-backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+# fold-swarm-core = { workspace = true }

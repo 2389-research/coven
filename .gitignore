@@ -1,0 +1,25 @@
+# ABOUTME: Git ignore patterns for Rust monorepo
+# ABOUTME: Excludes build artifacts, IDE files, and OS-specific files
+
+# Build artifacts
+/target/
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.local
+
+# Generated files
+*.generated.*
