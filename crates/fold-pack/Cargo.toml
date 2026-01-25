@@ -1,5 +1,5 @@
-# ABOUTME: Pack trait definitions and utilities
-# ABOUTME: Core abstractions for fold agent packs (tool bundles)
+# ABOUTME: Cargo manifest for fold-pack crate
+# ABOUTME: Rust SDK for building tool packs that provide tools to fold agents
 
 [package]
 name = "fold-pack"
@@ -7,12 +7,40 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Rust SDK for building tool packs that provide tools to fold agents"
 
 [dependencies]
-async-trait.workspace = true
+# Workspace dependencies
+fold-proto = { path = "../fold-proto" }
+fold-ssh = { path = "../fold-ssh" }
+fold-grpc = { path = "../fold-grpc" }
+
+# Async runtime
 tokio.workspace = true
-anyhow.workspace = true
+
+# gRPC
+tonic.workspace = true
+
+# Streaming
+futures.workspace = true
+
+# Error handling
 thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Serialization
 serde.workspace = true
 serde_json.workspace = true
-tracing.workspace = true
+
+# Configuration
+dotenvy.workspace = true
+toml.workspace = true
+dirs.workspace = true
+
+# Async traits
+async-trait.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
