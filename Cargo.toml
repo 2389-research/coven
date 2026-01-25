@@ -82,7 +82,7 @@ fold-ssh = { path = "crates/fold-ssh" }
 fold-grpc = { path = "crates/fold-grpc" }
 fold-client = { path = "crates/fold-client" }
 fold-pack = { path = "crates/fold-pack" }
-# fold-core = { path = "crates/fold-core" }
+fold-core = { path = "crates/fold-core" }
 # fold-agent = { path = "crates/fold-agent" }
 # fold-swarm = { path = "crates/fold-swarm" }
 # fold-swarm-backend = { path = "crates/fold-swarm-backend" }

@@ -1,2 +1,17 @@
-// ABOUTME: Core agent runtime and execution logic
-// ABOUTME: Handles LLM interaction, tool execution, and conversation management - placeholder for migration
+// ABOUTME: Core library for fold - types, router, backend, storage
+// ABOUTME: Shared between fold-agent and fold-server
+
+pub mod backend;
+pub mod config;
+pub mod files;
+pub mod mcp_http;
+pub mod router;
+pub mod store;
+pub mod types;
+
+pub use backend::{BackendEvent, ToolStateKind};
+pub use config::Config;
+pub use files::SessionFiles;
+pub use router::Fold;
+pub use store::ThreadStore;
+pub use types::{FileAttachment, IncomingMessage, OutgoingEvent, Thread};
