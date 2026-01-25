@@ -1,5 +1,5 @@
-# ABOUTME: gRPC client implementation for fold services
-# ABOUTME: Provides typed client for communicating with fold-gateway
+# ABOUTME: Cargo manifest for fold-grpc crate
+# ABOUTME: Shared gRPC utilities for fold-agent, fold-swarm, and fold-leader
 
 [package]
 name = "fold-grpc"
@@ -7,13 +7,19 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Shared gRPC client utilities for fold projects"
 
 [dependencies]
+# Workspace dependencies
+tokio.workspace = true
 tonic.workspace = true
 prost.workspace = true
-tokio.workspace = true
-anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
-# fold-proto = { workspace = true }
+# Streaming support
+tokio-stream.workspace = true
+futures.workspace = true
+
+# Proto types - use path dependency within fold workspace
+fold-proto = { path = "../fold-proto" }

@@ -26,6 +26,19 @@ tonic-build = "0.12"
 # SSH
 ssh-key = { version = "0.6", features = ["ed25519", "encryption"] }
 
+# Cryptography
+sha2 = "0.10"
+ed25519-dalek = "2"
+rand = "0.8"
+base64 = "0.22"
+hex = "0.4"
+
+# Filesystem helpers
+dirs = "6"
+
+# Testing
+tempfile = "3"
+
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -54,8 +67,8 @@ mux = { git = "https://github.com/2389-research/mux-rs", branch = "main" }
 
 # Internal crates (uncomment as we migrate)
 fold-proto = { path = "crates/fold-proto" }
-# fold-ssh = { path = "crates/fold-ssh" }
-# fold-grpc = { path = "crates/fold-grpc" }
+fold-ssh = { path = "crates/fold-ssh" }
+fold-grpc = { path = "crates/fold-grpc" }
 # fold-client = { path = "crates/fold-client" }
 # fold-pack = { path = "crates/fold-pack" }
 # fold-core = { path = "crates/fold-core" }
