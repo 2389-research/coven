@@ -53,7 +53,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mux = { git = "https://github.com/2389-research/mux-rs", branch = "main" }
 
 # Internal crates (uncomment as we migrate)
-# fold-proto = { path = "crates/fold-proto" }
+fold-proto = { path = "crates/fold-proto" }
 # fold-ssh = { path = "crates/fold-ssh" }
 # fold-grpc = { path = "crates/fold-grpc" }
 # fold-client = { path = "crates/fold-client" }
