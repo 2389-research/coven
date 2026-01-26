@@ -60,7 +60,7 @@ impl Drop for TerminalGuard {
 }
 
 pub async fn run(name: &str, agent_id: &str, backend_type: &str, working_dir: &Path) -> Result<()> {
-    // Initialize fold core
+    // Initialize coven core
     let config = Config::load()?;
 
     // Create shared state for pending approvals (used by mux backend callback)

@@ -46,7 +46,7 @@ pub async fn run(
     verbose: bool,
     metadata: crate::metadata::AgentMetadata,
 ) -> Result<()> {
-    // Initialize fold core components
+    // Initialize coven core components
     let config = Config::load()?;
 
     // Create shared state for pending approvals

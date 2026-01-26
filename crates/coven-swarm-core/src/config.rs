@@ -16,7 +16,7 @@ pub enum BackendType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Gateway gRPC URL (e.g., "grpc://fold.example.com:50051")
+    /// Gateway gRPC URL (e.g., "grpc://coven.example.com:50051")
     pub gateway_url: String,
 
     /// Agent name prefix (e.g., "home" -> "home_research")

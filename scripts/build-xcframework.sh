@@ -1,13 +1,13 @@
 #!/bin/bash
-# ABOUTME: Builds FoldClientFFI.xcframework for iOS integration
+# ABOUTME: Builds CovenClientFFI.xcframework for iOS integration
 # ABOUTME: Creates universal static library with Swift bindings for xtool/SwiftPM
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-OUTPUT_DIR="$ROOT_DIR/FoldClientFFI.xcframework"
-BINDINGS_DIR="$ROOT_DIR/crates/fold-client/bindings"
+OUTPUT_DIR="$ROOT_DIR/CovenClientFFI.xcframework"
+BINDINGS_DIR="$ROOT_DIR/crates/coven-client/bindings"
 
 cd "$ROOT_DIR"
 
@@ -28,29 +28,29 @@ if [ -n "$MISSING" ]; then
 fi
 echo "  All required targets installed"
 
-echo "==> Building fold-client for iOS targets..."
+echo "==> Building coven-client for iOS targets..."
 
 # Build for iOS device (arm64)
 echo "  -> aarch64-apple-ios (device)"
-cargo build --release --package fold-client --target aarch64-apple-ios
+cargo build --release --package coven-client --target aarch64-apple-ios
 
 # Build for iOS simulator (arm64)
 echo "  -> aarch64-apple-ios-sim (simulator arm64)"
-cargo build --release --package fold-client --target aarch64-apple-ios-sim
+cargo build --release --package coven-client --target aarch64-apple-ios-sim
 
 # Build for iOS simulator (x86_64)
 echo "  -> x86_64-apple-ios (simulator x86_64)"
-cargo build --release --package fold-client --target x86_64-apple-ios
+cargo build --release --package coven-client --target x86_64-apple-ios
 
-echo "==> Building fold-client for macOS targets..."
+echo "==> Building coven-client for macOS targets..."
 
 # Build for macOS (arm64 - Apple Silicon)
 echo "  -> aarch64-apple-darwin (macOS arm64)"
-cargo build --release --package fold-client --target aarch64-apple-darwin
+cargo build --release --package coven-client --target aarch64-apple-darwin
 
 # Build for macOS (x86_64 - Intel)
 echo "  -> x86_64-apple-darwin (macOS x86_64)"
-cargo build --release --package fold-client --target x86_64-apple-darwin
+cargo build --release --package coven-client --target x86_64-apple-darwin
 
 echo "==> Creating universal simulator library..."
 mkdir -p target/universal-sim
@@ -69,8 +69,8 @@ lipo -create \
 echo "==> Creating module map..."
 mkdir -p "$BINDINGS_DIR"
 cat > "$BINDINGS_DIR/module.modulemap" << 'EOF'
-module fold_clientFFI {
-    header "fold_clientFFI.h"
+module coven_clientFFI {
+    header "coven_clientFFI.h"
     export *
 }
 EOF
@@ -97,6 +97,6 @@ echo ""
 echo "Done! Add this to your Package.swift:"
 echo ""
 echo '    .binaryTarget('
-echo '        name: "FoldClientFFI",'
-echo '        path: "../fold/FoldClientFFI.xcframework"'
+echo '        name: "CovenClientFFI",'
+echo '        path: "../coven/CovenClientFFI.xcframework"'
 echo '    )'

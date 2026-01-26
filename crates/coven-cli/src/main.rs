@@ -451,14 +451,14 @@ async fn run_pack(cmd: PackCommands) -> Result<()> {
 
 /// Print version information
 fn print_version() {
-    println!("fold {}", env!("CARGO_PKG_VERSION"));
+    println!("coven {}", env!("CARGO_PKG_VERSION"));
     println!();
     println!("Component versions:");
     println!("  coven-cli:    {}", env!("CARGO_PKG_VERSION"));
     println!("  coven-client: (linked)");
     println!("  coven-pack:   (linked)");
     println!();
-    println!("Repository: https://github.com/2389-research/fold");
+    println!("Repository: https://github.com/2389-research/coven");
 }
 
 #[cfg(test)]

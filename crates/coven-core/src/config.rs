@@ -125,7 +125,7 @@ pub struct MatrixConfig {
 }
 
 impl Config {
-    /// Get the XDG config directory for coven (~/.config/fold)
+    /// Get the XDG config directory for coven (~/.config/coven)
     pub fn config_dir() -> PathBuf {
         // Respect XDG_CONFIG_HOME if set, otherwise use ~/.config
         std::env::var("XDG_CONFIG_HOME")
@@ -138,7 +138,7 @@ impl Config {
             .join("coven")
     }
 
-    /// Get the XDG data directory for coven (~/.local/share/fold)
+    /// Get the XDG data directory for coven (~/.local/share/coven)
     pub fn data_dir() -> PathBuf {
         // Respect XDG_DATA_HOME if set, otherwise use ~/.local/share
         std::env::var("XDG_DATA_HOME")
@@ -202,7 +202,7 @@ impl Config {
             .unwrap_or_else(|| "~".to_string());
 
         format!(
-            r#"# fold configuration
+            r#"# coven configuration
 # Location: ~/.config/coven/config.toml
 
 # Workspace directory to launch from

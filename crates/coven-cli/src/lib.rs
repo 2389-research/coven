@@ -5,11 +5,11 @@
 //!
 //! Unified command-line interface for coven agent orchestration.
 //!
-//! This crate provides the `fold` binary which consolidates all fold
+//! This crate provides the `coven` binary which consolidates all coven
 //! commands under a single entry point:
 //!
 //! ```text
-//! fold
+//! coven
 //! ├── init                          # First-time setup wizard
 //! ├── swarm
 //! │   ├── start                     # Start supervisor daemon

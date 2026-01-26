@@ -60,7 +60,7 @@ struct ClientState {
     session_usage: UsageInfo,
 }
 
-/// The main fold gateway client (gRPC-based)
+/// The main coven gateway client (gRPC-based)
 ///
 /// All methods are truly async - safe to call from any async context.
 /// The client maintains its own Tokio runtime for FFI callers (iOS/Swift)

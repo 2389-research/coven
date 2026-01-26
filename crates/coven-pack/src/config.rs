@@ -91,7 +91,7 @@ fn load_packs_toml() -> PacksToml {
     toml::from_str(&content).unwrap_or_default()
 }
 
-/// Get ~/.config/fold directory (XDG convention, consistent with coven-ssh).
+/// Get ~/.config/coven directory (XDG convention, consistent with coven-ssh).
 /// Ignores empty or non-absolute XDG_CONFIG_HOME values to avoid surprising paths.
 fn config_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_CONFIG_HOME")
@@ -218,7 +218,7 @@ mod tests {
         let dir = dir.unwrap();
         assert!(
             dir.ends_with("coven"),
-            "Expected path ending in 'fold', got: {:?}",
+            "Expected path ending in 'coven', got: {:?}",
             dir
         );
     }
@@ -400,7 +400,7 @@ mod tests {
     fn test_config_dir_ignores_empty_xdg() {
         with_env_vars(&[("XDG_CONFIG_HOME", "")], || {
             let dir = config_dir();
-            // Should fall back to ~/.config/fold, not use empty string
+            // Should fall back to ~/.config/coven, not use empty string
             if let Some(d) = dir {
                 assert!(d.is_absolute(), "Expected absolute path, got {:?}", d);
             }
@@ -411,7 +411,7 @@ mod tests {
     fn test_config_dir_ignores_relative_xdg() {
         with_env_vars(&[("XDG_CONFIG_HOME", "relative/path")], || {
             let dir = config_dir();
-            // Should fall back to ~/.config/fold, not use relative path
+            // Should fall back to ~/.config/coven, not use relative path
             if let Some(d) = dir {
                 assert!(d.is_absolute(), "Expected absolute path, got {:?}", d);
             }

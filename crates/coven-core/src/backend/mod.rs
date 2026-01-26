@@ -1,4 +1,4 @@
-// ABOUTME: Backend trait defining how fold connects to AI providers
+// ABOUTME: Backend trait defining how coven connects to AI providers
 // ABOUTME: Implementations: DirectCli (preferred), Mux (native Rust), ClaudeSdk (legacy)
 
 mod claude_sdk;

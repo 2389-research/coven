@@ -80,7 +80,7 @@ impl DisplayMode {
     }
 }
 
-/// Get XDG-style config directory (~/.config/fold)
+/// Get XDG-style config directory (~/.config/coven)
 /// Respects XDG_CONFIG_HOME if set, otherwise uses ~/.config
 fn xdg_config_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_CONFIG_HOME")
@@ -97,7 +97,7 @@ fn default_config_path() -> Option<PathBuf> {
 /// Resolve project name from .coven/project.toml or directory basename
 fn resolve_project_name(working_dir: &std::path::Path) -> String {
     // Try to load .coven/project.toml (no exists() check - read_to_string handles it)
-    let project_config_path = working_dir.join(".fold").join("project.toml");
+    let project_config_path = working_dir.join(".coven").join("project.toml");
     if let Ok(content) = std::fs::read_to_string(&project_config_path) {
         if let Ok(config) = content.parse::<toml::Table>() {
             if let Some(name) = config.get("project_name").and_then(|v| v.as_str()) {
@@ -204,7 +204,7 @@ async fn run_agent(
     let config_path = config.or_else(|| {
         // Check for project-local config first (.coven/agent.toml in cwd)
         if let Ok(cwd) = std::env::current_dir() {
-            let project_config = cwd.join(".fold").join("agent.toml");
+            let project_config = cwd.join(".coven").join("agent.toml");
             if project_config.exists() {
                 return Some(project_config);
             }

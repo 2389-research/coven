@@ -88,7 +88,7 @@ All external dependencies should be declared in the root `Cargo.toml` under `[wo
 
 ## Migration Status
 
-This monorepo was consolidated from the original fold-* repositories and renamed to coven.
+This monorepo was consolidated from the original fold-* repositories (now archived) and renamed to coven.
 
 Current status: **Fully migrated and renamed**
 

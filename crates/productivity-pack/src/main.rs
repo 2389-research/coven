@@ -24,7 +24,7 @@ use tracing::info;
 
 const PACK_NAME: &str = "productivity-pack";
 
-/// Get XDG-style data directory (~/.local/share/fold).
+/// Get XDG-style data directory (~/.local/share/coven).
 fn xdg_data_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)

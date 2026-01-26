@@ -34,7 +34,7 @@ pub async fn run(config: &Config) -> Result<()> {
                 "Is the gateway running at {}:{}?",
                 config.gateway.host, config.gateway.port
             );
-            eprintln!("Try 'folder doctor' to diagnose connectivity issues.");
+            eprintln!("Try 'coven-chat doctor' to diagnose connectivity issues.");
             std::process::exit(1);
         }
     }

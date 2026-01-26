@@ -482,7 +482,7 @@ pub async fn run() -> Result<()> {
             println!();
             println!("Configuration saved to {}", config_path.display());
             println!();
-            println!("Run 'folder' to launch the TUI!");
+            println!("Run 'coven-chat' to launch the TUI!");
             return Ok(());
         }
 

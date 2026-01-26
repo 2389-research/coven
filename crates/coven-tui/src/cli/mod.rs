@@ -10,7 +10,7 @@ pub mod themes;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "folder", about = "Fold TUI - Chat with AI agents")]
+#[command(name = "coven-chat", about = "Coven TUI - Chat with AI agents")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,

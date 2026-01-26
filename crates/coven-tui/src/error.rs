@@ -19,7 +19,7 @@ pub enum AppError {
     #[error("Terminal error: {0}")]
     Terminal(String),
 
-    #[error("Gateway connection error: {message}\n\nIs the gateway running at {url}?\nTry 'folder doctor' to diagnose connectivity issues.")]
+    #[error("Gateway connection error: {message}\n\nIs the gateway running at {url}?\nTry 'coven-chat doctor' to diagnose connectivity issues.")]
     GatewayConnection { message: String, url: String },
 
     #[error("Agent not found: {name}\n\n{hint}")]

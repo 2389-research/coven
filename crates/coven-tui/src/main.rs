@@ -101,7 +101,7 @@ fn main() {
 
     match cli.command {
         Some(Command::Version) => {
-            println!("folder {}", env!("CARGO_PKG_VERSION"));
+            println!("coven-chat {}", env!("CARGO_PKG_VERSION"));
         }
         Some(Command::Config { action }) => {
             handle_config_command(action, &config);
@@ -163,7 +163,7 @@ fn main() {
         }
         Some(Command::Completion { shell }) => {
             let mut cmd = Cli::command();
-            clap_complete::generate(shell, &mut cmd, "folder", &mut std::io::stdout());
+            clap_complete::generate(shell, &mut cmd, "coven-chat", &mut std::io::stdout());
         }
         None => {
             let rt = match tokio::runtime::Runtime::new() {

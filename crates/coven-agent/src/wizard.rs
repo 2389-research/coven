@@ -18,7 +18,7 @@ use ratatui::{
 use std::io;
 use std::path::PathBuf;
 
-/// Get XDG-style config directory (~/.config/fold)
+/// Get XDG-style config directory (~/.config/coven)
 /// Respects XDG_CONFIG_HOME if set, otherwise uses ~/.config
 fn xdg_config_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_CONFIG_HOME")
@@ -242,7 +242,7 @@ backend = "{}"
 
         // Also save project-local config (.coven/agent.toml) for auto-detection
         if let Ok(cwd) = std::env::current_dir() {
-            let local_dir = cwd.join(".fold");
+            let local_dir = cwd.join(".coven");
             let _ = std::fs::create_dir_all(&local_dir);
             let local_path = local_dir.join("agent.toml");
             let _ = std::fs::write(&local_path, &config_content);

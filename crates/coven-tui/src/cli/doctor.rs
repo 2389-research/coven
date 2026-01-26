@@ -8,7 +8,7 @@ use crate::error::{AppError, Result};
 use crate::state::config::Config;
 
 pub async fn run(config: &Config) -> Result<()> {
-    println!("Checking fold gateway...");
+    println!("Checking coven gateway...");
     println!(
         "Gateway: {}:{} (gRPC)",
         config.gateway.host, config.gateway.port

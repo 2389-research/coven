@@ -5,7 +5,7 @@ use crate::error::{Result, SshError};
 use ssh_key::{Algorithm, LineEnding, PrivateKey};
 use std::path::{Path, PathBuf};
 
-/// Get XDG-style config directory (~/.config/fold).
+/// Get XDG-style config directory (~/.config/coven).
 ///
 /// Uses `XDG_CONFIG_HOME` if set, otherwise falls back to `~/.config`.
 pub fn xdg_config_dir() -> Option<PathBuf> {
