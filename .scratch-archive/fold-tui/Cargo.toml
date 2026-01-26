@@ -1,0 +1,70 @@
+[package]
+name = "fold-client-scenarios"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "scenario_4"
+path = "scenario_4_fold_client.rs"
+
+[[bin]]
+name = "scenario_5"
+path = "scenario_5_no_async.rs"
+
+[[bin]]
+name = "scenario_6"
+path = "scenario_6_direct_grpc.rs"
+
+[[bin]]
+name = "scenario_8"
+path = "scenario_8_fixed_client.rs"
+
+[[bin]]
+name = "scenario_7"
+path = "scenario_7_tailscale_grpc.rs"
+
+[[bin]]
+name = "scenario_full_suite"
+path = "scenario_full_suite.rs"
+
+[[bin]]
+name = "scenario_message"
+path = "scenario_message_test.rs"
+
+[[bin]]
+name = "scenario_local"
+path = "scenario_local_test.rs"
+
+[[bin]]
+name = "scenario_direct_message"
+path = "scenario_direct_message.rs"
+
+[[bin]]
+name = "scenario_local_e2e"
+path = "scenario_local_e2e.rs"
+
+[[bin]]
+name = "scenario_all_packs_e2e"
+path = "scenario_all_packs_e2e.rs"
+
+[[bin]]
+name = "scenario_quick_e2e"
+path = "scenario_quick_e2e.rs"
+
+[[bin]]
+name = "scenario_mcp_bridge_e2e"
+path = "scenario_mcp_bridge_e2e.rs"
+
+[[bin]]
+name = "scenario_cli_agent_e2e"
+path = "scenario_cli_agent_e2e.rs"
+
+[dependencies]
+fold-client = { path = "../../fold-common/crates/fold-client" }
+fold-grpc-client = { path = "../../fold-common/crates/fold-grpc-client" }
+fold-proto = { path = "../../fold-common/crates/fold-proto" }
+fold-ssh = { path = "../../fold-common/crates/fold-ssh" }
+tokio = { version = "1", features = ["full"] }
+tonic = "0.12"
+dirs = "6"
+futures = "0.3"
