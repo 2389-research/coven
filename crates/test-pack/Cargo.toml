@@ -1,0 +1,35 @@
+# ABOUTME: Cargo manifest for test-pack crate
+# ABOUTME: Simple echo tools for testing pack connectivity with fold-gateway
+
+[package]
+name = "test-pack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Test pack providing echo tools for verifying pack connectivity"
+
+[[bin]]
+name = "test-pack"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+fold-pack.workspace = true
+fold-proto.workspace = true
+fold-ssh.workspace = true
+
+# Async runtime
+tokio.workspace = true
+async-trait.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Error handling
+anyhow.workspace = true

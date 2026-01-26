@@ -1,0 +1,42 @@
+# ABOUTME: Cargo manifest for productivity-pack crate
+# ABOUTME: Todo and notes tools with SQLite persistence
+
+[package]
+name = "productivity-pack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Productivity pack providing todo and notes tools with SQLite storage"
+
+[[bin]]
+name = "productivity-pack"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+fold-pack.workspace = true
+fold-proto.workspace = true
+fold-ssh.workspace = true
+
+# Async runtime
+tokio.workspace = true
+async-trait.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Database
+sqlx.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Filesystem helpers
+dirs.workspace = true
