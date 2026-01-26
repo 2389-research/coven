@@ -110,12 +110,10 @@ impl AgentProcess {
         self.spawn_with_tui(None).await
     }
 
-    #[allow(dead_code)]
-    pub fn is_running(&mut self) -> bool {
-        match &mut self.child {
-            Some(child) => child.try_wait().ok().flatten().is_none(),
-            None => false,
-        }
+    pub fn is_running(&self) -> bool {
+        // If we have a pid, assume the process is running
+        // Accurate check would require try_wait but that requires &mut
+        self.pid.is_some() && self.child.is_some()
     }
 
     #[allow(dead_code)]

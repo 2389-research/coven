@@ -21,9 +21,11 @@ dirs.workspace = true
 dotenvy.workspace = true
 
 # Internal fold crates
+fold-agent.workspace = true
 fold-client.workspace = true
 fold-pack.workspace = true
 fold-swarm.workspace = true
+fold-swarm-core.workspace = true
 fold-tui.workspace = true
 
 [[bin]]

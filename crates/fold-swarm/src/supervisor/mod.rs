@@ -7,5 +7,6 @@ pub mod spawn;
 pub mod tui;
 
 pub use discover::discover_workspaces;
+pub use socket::{AgentStatus, Request, Response, SocketClient, SocketCommand, StatusInfo};
 pub use spawn::AgentProcess;
 pub use tui::{Tui, TuiEvent};

@@ -4,9 +4,13 @@
 pub mod client;
 pub mod metadata;
 pub mod pack_tool;
+pub mod run;
 pub mod single;
 pub mod tui;
 pub mod wizard;
+
+// Re-export main entry points for convenience
+pub use run::{run_agent, run_wizard, AgentRunConfig};
 
 /// Build MCP URL with token appended as a path segment.
 /// e.g., "http://localhost:8080/mcp" + "abc123" → "http://localhost:8080/mcp/abc123"

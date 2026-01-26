@@ -172,29 +172,60 @@ async fn run_init() -> Result<()> {
 async fn run_swarm(cmd: SwarmCommands) -> Result<()> {
     match cmd {
         SwarmCommands::Start { config, headless } => {
-            println!("fold swarm start");
-            println!("  config: {:?}", config);
-            println!("  headless: {}", headless);
-            println!();
-            println!("TODO: Delegate to fold-swarm supervisor");
-            println!("  Run: fold-swarm supervisor --config <path> {}", if headless { "--headless" } else { "" });
-            Ok(())
+            let options = fold_swarm::SupervisorOptions {
+                config_path: config,
+                headless,
+            };
+            fold_swarm::run_supervisor(options).await
         }
         SwarmCommands::Stop => {
-            println!("fold swarm stop");
-            println!();
-            println!("TODO: Send stop signal to running supervisor");
-            println!("  - Locate supervisor socket");
-            println!("  - Send shutdown command");
-            Ok(())
+            // Load config to get prefix for socket path
+            let config = fold_swarm_core::Config::load(
+                &fold_swarm_core::Config::default_path()?,
+            )?;
+
+            match fold_swarm::SocketClient::connect(&config.prefix).await {
+                Ok(mut client) => {
+                    client.stop().await?;
+                    println!("Supervisor stopped.");
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("Failed to connect to supervisor: {}", e);
+                    eprintln!("Is the supervisor running? Try 'fold swarm start' first.");
+                    Err(e)
+                }
+            }
         }
         SwarmCommands::Status => {
-            println!("fold swarm status");
-            println!();
-            println!("TODO: Query supervisor for agent status");
-            println!("  - Connect to supervisor socket");
-            println!("  - List running agents and their state");
-            Ok(())
+            // Load config to get prefix for socket path
+            let config = fold_swarm_core::Config::load(
+                &fold_swarm_core::Config::default_path()?,
+            )?;
+
+            match fold_swarm::SocketClient::connect(&config.prefix).await {
+                Ok(mut client) => {
+                    let status = client.status().await?;
+                    println!("Swarm Status");
+                    println!("  Prefix: {}", status.prefix);
+                    println!("  Agents: {}", status.agents.len());
+                    println!();
+                    for agent in &status.agents {
+                        let status_str = if agent.running { "running" } else { "stopped" };
+                        let pid_str = agent
+                            .pid
+                            .map(|p| format!("(pid: {})", p))
+                            .unwrap_or_default();
+                        println!("  - {} [{}] {}", agent.workspace, status_str, pid_str);
+                    }
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("Failed to connect to supervisor: {}", e);
+                    eprintln!("Is the supervisor running? Try 'fold swarm start' first.");
+                    Err(e)
+                }
+            }
         }
     }
 }
@@ -212,26 +243,20 @@ async fn run_agent(cmd: AgentCommands) -> Result<()> {
             headless,
             single,
         } => {
-            println!("fold agent run");
-            println!("  server: {}", server);
-            println!("  name: {}", name);
-            println!("  id: {:?}", id);
-            println!("  backend: {:?}", backend);
-            println!("  working_dir: {:?}", working_dir);
-            println!("  config: {:?}", config);
-            println!("  headless: {}", headless);
-            println!("  single: {}", single);
-            println!();
-            println!("TODO: Delegate to fold-agent");
-            println!("  Run: fold-agent --server {} --name {} ...", server, name);
-            Ok(())
+            let agent_config = fold_agent::AgentRunConfig {
+                server,
+                name,
+                id,
+                backend,
+                working_dir,
+                config,
+                headless,
+                single,
+            };
+            fold_agent::run_agent(agent_config).await
         }
         AgentCommands::New => {
-            println!("fold agent new");
-            println!();
-            println!("TODO: Delegate to fold-agent new wizard");
-            println!("  Run: fold-agent new");
-            Ok(())
+            fold_agent::run_wizard().await
         }
     }
 }
