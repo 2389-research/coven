@@ -1,9 +1,10 @@
 // ABOUTME: Unified CLI entry point for all fold commands.
 // ABOUTME: Dispatches to swarm, agent, chat, pack, and other subcommands.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use std::process::Command;
 
 #[derive(Parser)]
 #[command(name = "fold")]
@@ -268,36 +269,166 @@ async fn run_chat(gateway: Option<String>, theme: Option<String>) -> Result<()> 
         .map_err(|e| anyhow::anyhow!("{}", e))
 }
 
+/// Built-in pack definitions.
+struct BuiltinPack {
+    name: &'static str,
+    binary: &'static str,
+    description: &'static str,
+}
+
+/// List of built-in packs that ship with fold.
+const BUILTIN_PACKS: &[BuiltinPack] = &[
+    BuiltinPack {
+        name: "productivity",
+        binary: "productivity-pack",
+        description: "Task management and productivity tools (todo, notes)",
+    },
+    BuiltinPack {
+        name: "mcp-bridge",
+        binary: "mcp-bridge-pack",
+        description: "Bridge to expose any MCP server as fold tools",
+    },
+    BuiltinPack {
+        name: "test",
+        binary: "test-pack",
+        description: "Echo tools for testing pack connectivity",
+    },
+];
+
+/// Get the packs configuration directory (~/.config/fold/packs/).
+fn packs_config_dir() -> Option<PathBuf> {
+    dirs::config_dir().map(|p| p.join("fold").join("packs"))
+}
+
+/// List installed packs by checking the packs config directory.
+fn list_installed_packs() -> Vec<String> {
+    let Some(packs_dir) = packs_config_dir() else {
+        return Vec::new();
+    };
+
+    if !packs_dir.exists() {
+        return Vec::new();
+    }
+
+    let Ok(entries) = std::fs::read_dir(&packs_dir) else {
+        return Vec::new();
+    };
+
+    entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_dir())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect()
+}
+
+/// Find the pack binary path, checking PATH and cargo target directory.
+fn find_pack_binary(pack_name: &str) -> Option<PathBuf> {
+    // First, check if there's a built-in pack with this name
+    let binary_name = BUILTIN_PACKS
+        .iter()
+        .find(|p| p.name == pack_name)
+        .map(|p| p.binary)
+        .unwrap_or(pack_name);
+
+    // Check if binary exists in PATH
+    if let Ok(output) = Command::new("which").arg(binary_name).output() {
+        if output.status.success() {
+            let path_str = String::from_utf8_lossy(&output.stdout);
+            let path = PathBuf::from(path_str.trim());
+            if path.exists() {
+                return Some(path);
+            }
+        }
+    }
+
+    // Check cargo target directories (debug and release)
+    let cargo_dirs = [
+        std::env::current_dir().ok(),
+        std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from),
+    ];
+
+    for cargo_dir in cargo_dirs.into_iter().flatten() {
+        for profile in ["debug", "release"] {
+            let binary_path = cargo_dir.join("target").join(profile).join(binary_name);
+            if binary_path.exists() {
+                return Some(binary_path);
+            }
+        }
+    }
+
+    None
+}
+
 /// Handle pack subcommands
 async fn run_pack(cmd: PackCommands) -> Result<()> {
     match cmd {
         PackCommands::List => {
             println!("fold pack list");
             println!();
-            println!("Available packs:");
-            println!("  - productivity-pack: Task management and productivity tools");
-            println!("  - mcp-bridge-pack: MCP protocol bridge");
-            println!("  - test-pack: Example pack for testing");
+
+            // List built-in packs
+            println!("Built-in packs:");
+            for pack in BUILTIN_PACKS {
+                let status = if find_pack_binary(pack.name).is_some() {
+                    "available"
+                } else {
+                    "not built"
+                };
+                println!("  {:15} [{}] {}", pack.name, status, pack.description);
+            }
             println!();
-            println!("TODO: Query gateway for registered packs");
+
+            // List installed packs (those with config directories)
+            let installed = list_installed_packs();
+            if !installed.is_empty() {
+                println!("Configured packs (have SSH keys):");
+                for pack in &installed {
+                    println!("  {}", pack);
+                }
+                println!();
+            }
+
+            println!("Use 'fold pack run <name>' to start a pack.");
             Ok(())
         }
         PackCommands::Install { pack } => {
             println!("fold pack install {}", pack);
             println!();
-            println!("TODO: Pack installation from registry");
-            println!("  - Download pack from registry");
-            println!("  - Verify signature");
-            println!("  - Install to ~/.config/fold/packs/");
+
+            // For now, packs are Rust binaries that need to be compiled
+            // Future: support downloading pre-built binaries or building from source
+            println!("Pack installation is not yet implemented.");
+            println!();
+            println!("To use built-in packs, build them with:");
+            println!("  cargo build -p {}-pack", pack);
+            println!();
+            println!("Then run with:");
+            println!("  fold pack run {}", pack);
+
             Ok(())
         }
         PackCommands::Run { pack } => {
-            println!("fold pack run {}", pack);
+            // Find the pack binary
+            let binary_path = find_pack_binary(&pack)
+                .with_context(|| format!("Pack '{}' not found. Try building it first with: cargo build -p {}-pack", pack, pack))?;
+
+            println!("Starting pack: {}", pack);
+            println!("Binary: {}", binary_path.display());
             println!();
-            println!("TODO: Run pack directly");
-            println!("  - Load pack configuration");
-            println!("  - Connect to gateway");
-            println!("  - Register tools and handle requests");
+
+            // Execute the pack binary, inheriting stdio
+            let status = Command::new(&binary_path)
+                .stdin(std::process::Stdio::inherit())
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .status()
+                .with_context(|| format!("Failed to execute pack binary: {}", binary_path.display()))?;
+
+            if !status.success() {
+                let code = status.code().unwrap_or(1);
+                anyhow::bail!("Pack '{}' exited with code {}", pack, code);
+            }
+
             Ok(())
         }
     }
