@@ -88,8 +88,8 @@ fold-client = { path = "crates/fold-client" }
 fold-pack = { path = "crates/fold-pack" }
 fold-core = { path = "crates/fold-core" }
 fold-agent = { path = "crates/fold-agent" }
-# fold-swarm = { path = "crates/fold-swarm" }
-# fold-swarm-backend = { path = "crates/fold-swarm-backend" }
-# fold-swarm-core = { path = "crates/fold-swarm-core" }
+fold-swarm = { path = "crates/fold-swarm" }
+fold-swarm-backend = { path = "crates/fold-swarm-backend" }
+fold-swarm-core = { path = "crates/fold-swarm-core" }
 # fold-tui = { path = "crates/fold-tui" }
 # fold-cli = { path = "crates/fold-cli" }

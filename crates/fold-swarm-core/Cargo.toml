@@ -1,5 +1,5 @@
-# ABOUTME: Core swarm types and traits
-# ABOUTME: Foundational abstractions for swarm coordination
+# ABOUTME: Core configuration and types for fold-swarm supervisor
+# ABOUTME: Contains SwarmConfig, BackendType, and common utilities
 
 [package]
 name = "fold-swarm-core"
@@ -9,9 +9,13 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-async-trait.workspace = true
-tokio.workspace = true
-anyhow.workspace = true
-thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+toml.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+directories = "6"
+shellexpand = "3"
+
+[dev-dependencies]
+tempfile.workspace = true
