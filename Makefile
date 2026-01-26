@@ -27,6 +27,9 @@ coven-swarm:
 coven-chat:
 	cargo build -p coven-tui
 
+coven-admin:
+	cargo build -p coven-admin
+
 # Build release binaries
 coven-release:
 	cargo build -p coven-cli --release
@@ -79,6 +82,7 @@ install-all:
 	cargo install --path crates/coven-agent
 	cargo install --path crates/coven-swarm
 	cargo install --path crates/coven-tui
+	cargo install --path crates/coven-admin
 
 # Generate UniFFI bindings for Swift/Kotlin
 bindings:
