@@ -1,0 +1,25 @@
+# ABOUTME: Cargo manifest for coven-grpc crate
+# ABOUTME: Shared gRPC utilities for coven-agent, coven-swarm, and coven-leader
+
+[package]
+name = "coven-grpc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared gRPC client utilities for coven projects"
+
+[dependencies]
+# Workspace dependencies
+tokio.workspace = true
+tonic.workspace = true
+prost.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# Streaming support
+tokio-stream.workspace = true
+futures.workspace = true
+
+# Proto types - use path dependency within coven workspace
+coven-proto = { path = "../coven-proto" }

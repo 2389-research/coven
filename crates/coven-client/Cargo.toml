@@ -1,0 +1,52 @@
+# ABOUTME: Cargo manifest for coven-client crate
+# ABOUTME: Gateway client library for iOS (UniFFI) and TUI
+
+[package]
+name = "coven-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fold gateway client for iOS and TUI"
+
+[lib]
+crate-type = ["lib", "cdylib", "staticlib"]
+name = "coven_client"
+
+[dependencies]
+# Workspace dependencies
+tokio.workspace = true
+tonic.workspace = true
+prost.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde.workspace = true
+
+# Internal crates
+coven-proto.workspace = true
+coven-grpc.workspace = true
+coven-ssh.workspace = true
+
+# Async utilities
+futures.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+async-trait.workspace = true
+
+# Time handling
+chrono.workspace = true
+
+# UniFFI for Swift/Kotlin bindings
+uniffi.workspace = true
+url.workspace = true
+
+[build-dependencies]
+uniffi = { workspace = true, features = ["build"] }
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+
+[dev-dependencies]
+tokio-test = "0.4"
+uniffi = { workspace = true, features = ["bindgen-tests"] }

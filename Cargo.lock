@@ -669,6 +669,266 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
+name = "coven-agent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "clap",
+ "coven-core",
+ "coven-proto",
+ "coven-ssh",
+ "crossterm",
+ "dirs",
+ "dotenvy",
+ "futures",
+ "mux",
+ "percent-encoding",
+ "prost",
+ "rand",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "toml 0.8.23",
+ "tonic",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "coven-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "coven-agent",
+ "coven-client",
+ "coven-pack",
+ "coven-swarm",
+ "coven-swarm-core",
+ "coven-tui",
+ "dirs",
+ "dotenvy",
+ "serde",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "coven-client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "coven-grpc",
+ "coven-proto",
+ "coven-ssh",
+ "futures",
+ "prost",
+ "serde",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-test",
+ "tokio-util",
+ "tonic",
+ "tracing",
+ "uniffi",
+ "url",
+]
+
+[[package]]
+name = "coven-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "claude-sdk-rs",
+ "dirs",
+ "futures",
+ "glob",
+ "mux",
+ "percent-encoding",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "toml 0.8.23",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "coven-grpc"
+version = "0.1.0"
+dependencies = [
+ "coven-proto",
+ "futures",
+ "prost",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tracing",
+]
+
+[[package]]
+name = "coven-pack"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "coven-grpc",
+ "coven-proto",
+ "coven-ssh",
+ "dirs",
+ "dotenvy",
+ "futures",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml 0.8.23",
+ "tonic",
+ "tracing",
+]
+
+[[package]]
+name = "coven-proto"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
+name = "coven-ssh"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "dirs",
+ "ed25519-dalek",
+ "hex",
+ "rand",
+ "sha2",
+ "ssh-key",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "coven-swarm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "coven-core",
+ "coven-proto",
+ "coven-ssh",
+ "coven-swarm-backend",
+ "coven-swarm-core",
+ "crossterm",
+ "dirs",
+ "dotenvy",
+ "futures",
+ "hostname",
+ "prost",
+ "rand",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "toml 0.8.23",
+ "tonic",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "coven-swarm-backend"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "anyhow",
+ "async-trait",
+ "coven-core",
+ "futures",
+ "mux",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "coven-swarm-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "directories",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml 0.8.23",
+]
+
+[[package]]
+name = "coven-tui"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "clap_complete",
+ "coven-client",
+ "coven-grpc",
+ "coven-ssh",
+ "crossterm",
+ "dirs",
+ "dotenvy",
+ "insta",
+ "rand",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+ "tui-textarea",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1102,266 +1362,6 @@ name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
-
-[[package]]
-name = "fold-agent"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "clap",
- "crossterm",
- "dirs",
- "dotenvy",
- "fold-core",
- "fold-proto",
- "fold-ssh",
- "futures",
- "mux",
- "percent-encoding",
- "prost",
- "rand",
- "ratatui",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "toml 0.8.23",
- "tonic",
- "tracing",
- "tracing-subscriber",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "fold-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "dirs",
- "dotenvy",
- "fold-agent",
- "fold-client",
- "fold-pack",
- "fold-swarm",
- "fold-swarm-core",
- "fold-tui",
- "serde",
- "thiserror 2.0.18",
- "tokio",
- "toml 0.8.23",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "fold-client"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "fold-grpc",
- "fold-proto",
- "fold-ssh",
- "futures",
- "prost",
- "serde",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tokio-test",
- "tokio-util",
- "tonic",
- "tracing",
- "uniffi",
- "url",
-]
-
-[[package]]
-name = "fold-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "claude-sdk-rs",
- "dirs",
- "futures",
- "glob",
- "mux",
- "percent-encoding",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "sqlx",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "toml 0.8.23",
- "tracing",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "fold-grpc"
-version = "0.1.0"
-dependencies = [
- "fold-proto",
- "futures",
- "prost",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tonic",
- "tracing",
-]
-
-[[package]]
-name = "fold-pack"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "dirs",
- "dotenvy",
- "fold-grpc",
- "fold-proto",
- "fold-ssh",
- "futures",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "toml 0.8.23",
- "tonic",
- "tracing",
-]
-
-[[package]]
-name = "fold-proto"
-version = "0.1.0"
-dependencies = [
- "prost",
- "tonic",
- "tonic-build",
-]
-
-[[package]]
-name = "fold-ssh"
-version = "0.1.0"
-dependencies = [
- "base64",
- "dirs",
- "ed25519-dalek",
- "hex",
- "rand",
- "sha2",
- "ssh-key",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tonic",
-]
-
-[[package]]
-name = "fold-swarm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "crossterm",
- "dirs",
- "dotenvy",
- "fold-core",
- "fold-proto",
- "fold-ssh",
- "fold-swarm-backend",
- "fold-swarm-core",
- "futures",
- "hostname",
- "prost",
- "rand",
- "ratatui",
- "serde",
- "serde_json",
- "shellexpand",
- "tempfile",
- "tokio",
- "tokio-stream",
- "toml 0.8.23",
- "tonic",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "fold-swarm-backend"
-version = "0.1.0"
-dependencies = [
- "agent-client-protocol",
- "anyhow",
- "async-trait",
- "fold-core",
- "futures",
- "mux",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "fold-swarm-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "directories",
- "serde",
- "serde_json",
- "shellexpand",
- "tempfile",
- "thiserror 2.0.18",
- "toml 0.8.23",
-]
-
-[[package]]
-name = "fold-tui"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "clap",
- "clap_complete",
- "crossterm",
- "dirs",
- "dotenvy",
- "fold-client",
- "fold-grpc",
- "fold-ssh",
- "insta",
- "rand",
- "ratatui",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "toml 0.8.23",
- "tracing",
- "tracing-subscriber",
- "tui-textarea",
-]
 
 [[package]]
 name = "foldhash"
@@ -2178,9 +2178,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "fold-pack",
- "fold-proto",
- "fold-ssh",
+ "coven-pack",
+ "coven-proto",
+ "coven-ssh",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -2678,10 +2678,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "coven-pack",
+ "coven-proto",
+ "coven-ssh",
  "dirs",
- "fold-pack",
- "fold-proto",
- "fold-ssh",
  "serde",
  "serde_json",
  "sqlx",
@@ -3819,9 +3819,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "fold-pack",
- "fold-proto",
- "fold-ssh",
+ "coven-pack",
+ "coven-proto",
+ "coven-ssh",
  "serde",
  "serde_json",
  "tokio",

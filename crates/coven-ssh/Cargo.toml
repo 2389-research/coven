@@ -1,0 +1,35 @@
+# ABOUTME: Cargo manifest for coven-ssh crate
+# ABOUTME: SSH key management and authentication utilities for coven services
+
+[package]
+name = "coven-ssh"
+description = "SSH key management and authentication utilities for coven services"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# SSH key handling
+ssh-key.workspace = true
+
+# gRPC integration
+tonic.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Cryptography
+sha2.workspace = true
+ed25519-dalek.workspace = true
+rand.workspace = true
+base64.workspace = true
+hex.workspace = true
+
+# Filesystem helpers
+dirs.workspace = true
+
+[dev-dependencies]
+# For testing
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile.workspace = true

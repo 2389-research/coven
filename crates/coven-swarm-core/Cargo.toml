@@ -1,0 +1,21 @@
+# ABOUTME: Core configuration and types for coven-swarm supervisor
+# ABOUTME: Contains SwarmConfig, BackendType, and common utilities
+
+[package]
+name = "coven-swarm-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+directories = "6"
+shellexpand = "3"
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -1,10 +1,10 @@
-# fold
+# coven
 
 A Rust-based agent platform for orchestrating AI agents with tool capabilities.
 
 ## Overview
 
-fold provides infrastructure for running and coordinating AI agents that can use tools (called "packs") to accomplish tasks. The platform supports:
+coven provides infrastructure for running and coordinating AI agents that can use tools (called "packs") to accomplish tasks. The platform supports:
 
 - **Agent Runtime**: Execute agents with LLM backends and tool access
 - **Swarm Orchestration**: Coordinate multiple agents working together
@@ -16,18 +16,18 @@ fold provides infrastructure for running and coordinating AI agents that can use
 
 | Crate | Description |
 |-------|-------------|
-| `fold-proto` | Protocol buffer definitions for gRPC communication |
-| `fold-ssh` | SSH key management and authentication |
-| `fold-grpc` | gRPC client for fold services |
-| `fold-client` | High-level client library |
-| `fold-pack` | Pack trait definitions and utilities |
-| `fold-core` | Core agent runtime and execution |
-| `fold-agent` | Agent binary |
-| `fold-swarm` | Swarm orchestration |
-| `fold-swarm-backend` | Storage backends for swarm state |
-| `fold-swarm-core` | Core swarm types and traits |
-| `fold-tui` | Terminal user interface |
-| `fold-cli` | Unified command-line interface |
+| `coven-proto` | Protocol buffer definitions for gRPC communication |
+| `coven-ssh` | SSH key management and authentication |
+| `coven-grpc` | gRPC client for coven services |
+| `coven-client` | High-level client library |
+| `coven-pack` | Pack trait definitions and utilities |
+| `coven-core` | Core agent runtime and execution |
+| `coven-agent` | Agent binary |
+| `coven-swarm` | Swarm orchestration |
+| `coven-swarm-backend` | Storage backends for swarm state |
+| `coven-swarm-core` | Core swarm types and traits |
+| `coven-tui` | Terminal user interface |
+| `coven-cli` | Unified command-line interface |
 
 ## Building
 

@@ -1,0 +1,238 @@
+// ABOUTME: coven-swarm library with supervisor, agent, and init modules.
+// ABOUTME: Re-exports for programmatic use of swarm functionality.
+
+pub mod agent;
+pub mod init;
+pub mod supervisor;
+
+pub use agent::{GatewayClient, Session};
+pub use coven_swarm_core::Config;
+pub use init::run_init;
+pub use supervisor::{
+    discover_workspaces, socket, AgentProcess, AgentStatus, SocketClient, SocketCommand,
+    StatusInfo, Tui, TuiEvent,
+};
+
+use anyhow::Result;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use tokio::sync::mpsc;
+
+/// Options for running the supervisor
+pub struct SupervisorOptions {
+    /// Path to configuration file
+    pub config_path: Option<PathBuf>,
+    /// Run in headless mode (no TUI)
+    pub headless: bool,
+}
+
+/// Run the supervisor daemon
+pub async fn run_supervisor(options: SupervisorOptions) -> Result<()> {
+    let config_path = options.config_path.unwrap_or_else(|| {
+        Config::default_path().expect("Failed to get default config path")
+    });
+    let config = Config::load(&config_path)?;
+    let working_dir = config.working_directory_expanded();
+
+    // Create TUI if not headless
+    let tui_tx: Option<mpsc::Sender<TuiEvent>> = if options.headless {
+        None
+    } else {
+        match Tui::new() {
+            Ok((tui, tx)) => {
+                // Run TUI in background
+                tokio::spawn(async move {
+                    if let Err(e) = tui.run().await {
+                        eprintln!("TUI error: {}", e);
+                    }
+                    // TUI quit, exit the process
+                    std::process::exit(0);
+                });
+                Some(tx)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to create TUI, falling back to headless");
+                None
+            }
+        }
+    };
+
+    // Helper to send TUI events or log
+    let send_event = |tx: &Option<mpsc::Sender<TuiEvent>>, event: TuiEvent| {
+        if let Some(tx) = tx {
+            let _ = tx.try_send(event);
+        }
+    };
+
+    // Discover existing workspaces
+    let workspaces = discover_workspaces(&working_dir)?;
+    if let Some(ref tx) = tui_tx {
+        let _ = tx.try_send(TuiEvent::System {
+            message: format!("Discovered {} workspaces", workspaces.len()),
+        });
+    } else {
+        tracing::info!(count = workspaces.len(), "Discovered workspaces");
+    }
+
+    // Spawn agents
+    let mut agents: HashMap<String, AgentProcess> = HashMap::new();
+
+    for workspace in workspaces {
+        // dispatch workspace gets dispatch_mode=true
+        let dispatch_mode = workspace == "dispatch";
+        let mut agent = AgentProcess::new(workspace.clone(), config_path.clone(), dispatch_mode);
+        agent.spawn_with_tui(tui_tx.clone()).await?;
+        if let Some(ref tx) = tui_tx {
+            let _ = tx.try_send(TuiEvent::AgentSpawned {
+                workspace: workspace.clone(),
+                pid: agent.pid().unwrap_or(0),
+            });
+        }
+        agents.insert(workspace, agent);
+    }
+
+    // Ensure dispatch exists (create if not discovered)
+    if !agents.contains_key("dispatch") {
+        std::fs::create_dir_all(working_dir.join("dispatch"))?;
+        let mut dispatch = AgentProcess::new("dispatch".to_string(), config_path.clone(), true);
+        dispatch.spawn_with_tui(tui_tx.clone()).await?;
+        if let Some(ref tx) = tui_tx {
+            let _ = tx.try_send(TuiEvent::AgentSpawned {
+                workspace: "dispatch".to_string(),
+                pid: dispatch.pid().unwrap_or(0),
+            });
+        }
+        agents.insert("dispatch".to_string(), dispatch);
+    }
+
+    // Start socket server
+    let (cmd_tx, mut cmd_rx) = tokio::sync::mpsc::channel(32);
+    let socket_path = socket::socket_path(&config.prefix);
+    let prefix_for_status = config.prefix.clone();
+
+    let tui_tx_socket = tui_tx.clone();
+    tokio::spawn(async move {
+        if let Err(e) = socket::run_socket_server(socket_path, cmd_tx).await {
+            if let Some(ref tx) = tui_tx_socket {
+                let _ = tx.try_send(TuiEvent::System {
+                    message: format!("Socket server error: {}", e),
+                });
+            } else {
+                tracing::error!(error = %e, "Socket server error");
+            }
+        }
+    });
+
+    if let Some(ref tx) = tui_tx {
+        let _ = tx.try_send(TuiEvent::System {
+            message: "Socket server listening".to_string(),
+        });
+    }
+
+    // Handle socket commands
+    while let Some(cmd) = cmd_rx.recv().await {
+        match cmd {
+            SocketCommand::List { reply } => {
+                send_event(
+                    &tui_tx,
+                    TuiEvent::SocketCommand {
+                        command: "list".to_string(),
+                    },
+                );
+                let names: Vec<String> = agents.keys().cloned().collect();
+                let _ = reply.send(names);
+            }
+            SocketCommand::Create { name, reply } => {
+                send_event(
+                    &tui_tx,
+                    TuiEvent::SocketCommand {
+                        command: format!("create {}", name),
+                    },
+                );
+                if agents.contains_key(&name) {
+                    let _ = reply.send(Err(anyhow::anyhow!("Workspace already exists")));
+                    continue;
+                }
+                std::fs::create_dir_all(working_dir.join(&name))?;
+                let mut agent = AgentProcess::new(name.clone(), config_path.clone(), false);
+                if let Err(e) = agent.spawn_with_tui(tui_tx.clone()).await {
+                    let _ = reply.send(Err(e));
+                    continue;
+                }
+                if let Some(ref tx) = tui_tx {
+                    let _ = tx.try_send(TuiEvent::AgentSpawned {
+                        workspace: name.clone(),
+                        pid: agent.pid().unwrap_or(0),
+                    });
+                }
+                let agent_id = format!("{}_{}", config.prefix, name);
+                agents.insert(name, agent);
+                let _ = reply.send(Ok(agent_id));
+            }
+            SocketCommand::Delete { name, reply } => {
+                send_event(
+                    &tui_tx,
+                    TuiEvent::SocketCommand {
+                        command: format!("delete {}", name),
+                    },
+                );
+                if let Some(mut agent) = agents.remove(&name) {
+                    let _ = agent.kill().await;
+                    if let Some(ref tx) = tui_tx {
+                        let _ = tx.try_send(TuiEvent::AgentExited {
+                            workspace: name,
+                            code: Some(0),
+                        });
+                    }
+                    let _ = reply.send(Ok(()));
+                } else {
+                    let _ = reply.send(Err(anyhow::anyhow!("Workspace not found")));
+                }
+            }
+            SocketCommand::Status { reply } => {
+                send_event(
+                    &tui_tx,
+                    TuiEvent::SocketCommand {
+                        command: "status".to_string(),
+                    },
+                );
+                let agent_statuses: Vec<AgentStatus> = agents
+                    .iter_mut()
+                    .map(|(name, agent)| AgentStatus {
+                        workspace: name.clone(),
+                        pid: agent.pid(),
+                        running: agent.is_running(),
+                    })
+                    .collect();
+                let status_info = StatusInfo {
+                    prefix: prefix_for_status.clone(),
+                    agents: agent_statuses,
+                };
+                let _ = reply.send(status_info);
+            }
+            SocketCommand::Stop { reply } => {
+                send_event(
+                    &tui_tx,
+                    TuiEvent::SocketCommand {
+                        command: "stop".to_string(),
+                    },
+                );
+                // Kill all agents
+                for (name, mut agent) in agents.drain() {
+                    let _ = agent.kill().await;
+                    if let Some(ref tx) = tui_tx {
+                        let _ = tx.try_send(TuiEvent::AgentExited {
+                            workspace: name,
+                            code: Some(0),
+                        });
+                    }
+                }
+                let _ = reply.send(());
+                // Exit the supervisor
+                std::process::exit(0);
+            }
+        }
+    }
+
+    Ok(())
+}

@@ -1,0 +1,46 @@
+# ABOUTME: Cargo manifest for coven-pack crate
+# ABOUTME: Rust SDK for building tool packs that provide tools to coven agents
+
+[package]
+name = "coven-pack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Rust SDK for building tool packs that provide tools to coven agents"
+
+[dependencies]
+# Workspace dependencies
+coven-proto = { path = "../coven-proto" }
+coven-ssh = { path = "../coven-ssh" }
+coven-grpc = { path = "../coven-grpc" }
+
+# Async runtime
+tokio.workspace = true
+
+# gRPC
+tonic.workspace = true
+
+# Streaming
+futures.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Configuration
+dotenvy.workspace = true
+toml.workspace = true
+dirs.workspace = true
+
+# Async traits
+async-trait.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

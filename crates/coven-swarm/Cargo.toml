@@ -1,0 +1,50 @@
+# ABOUTME: coven-swarm CLI entry point and supervisor daemon
+# ABOUTME: Provides init, supervisor, and agent subcommands for swarm orchestration
+
+[package]
+name = "coven-swarm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "coven-swarm"
+path = "src/main.rs"
+
+[features]
+default = ["acp"]
+acp = ["coven-swarm-backend/acp"]
+
+[dependencies]
+coven-swarm-core.workspace = true
+coven-swarm-backend.workspace = true
+coven-core.workspace = true
+
+# Shared coven crates
+coven-ssh.workspace = true
+coven-proto.workspace = true
+
+tokio.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+tonic.workspace = true
+prost.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+clap.workspace = true
+dirs.workspace = true
+hostname = "0.4"
+dotenvy.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+shellexpand = "3"
+rand.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

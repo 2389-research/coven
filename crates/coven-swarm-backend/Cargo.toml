@@ -1,0 +1,35 @@
+# ABOUTME: Pluggable Claude backend abstraction for coven-swarm
+# ABOUTME: Re-exports coven-core's Backend trait and adds ACP + dispatch tools
+
+[package]
+name = "coven-swarm-backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+acp = ["dep:agent-client-protocol", "dep:tokio-util", "dep:tokio-stream"]
+
+[dependencies]
+coven-core.workspace = true
+mux.workspace = true
+tokio.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+tokio-stream = { workspace = true, optional = true }
+
+# Optional: ACP
+agent-client-protocol = { version = "0.9", optional = true }
+tokio-util = { version = "0.7", features = ["compat"], optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber.workspace = true

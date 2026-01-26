@@ -1,6 +1,6 @@
-# fold Monorepo
+# coven Monorepo
 
-Welcome to the fold consolidated monorepo! This workspace contains all the Rust crates that make up the fold agent platform.
+Welcome to the coven consolidated monorepo! This workspace contains all the Rust crates that make up the coven agent platform.
 
 ## Naming Convention
 
@@ -11,21 +11,21 @@ For this project:
 ## Project Structure
 
 ```
-fold/
+coven/
 ├── Cargo.toml                    # Workspace root with shared dependencies
 ├── crates/
-│   ├── fold-proto/               # Protobuf definitions (gRPC types)
-│   ├── fold-ssh/                 # SSH key management
-│   ├── fold-grpc/                # gRPC client implementation
-│   ├── fold-client/              # High-level client library
-│   ├── fold-pack/                # Pack trait and utilities
-│   ├── fold-core/                # Core agent runtime
-│   ├── fold-agent/               # Agent binary
-│   ├── fold-swarm/               # Swarm orchestration
-│   ├── fold-swarm-backend/       # Swarm storage backends
-│   ├── fold-swarm-core/          # Swarm core types
-│   ├── fold-tui/                 # Terminal UI
-│   └── fold-cli/                 # Unified CLI
+│   ├── coven-proto/              # Protobuf definitions (gRPC types)
+│   ├── coven-ssh/                # SSH key management
+│   ├── coven-grpc/               # gRPC client implementation
+│   ├── coven-client/             # High-level client library
+│   ├── coven-pack/               # Pack trait and utilities
+│   ├── coven-core/               # Core agent runtime
+│   ├── coven-agent/              # Agent binary
+│   ├── coven-swarm/              # Swarm orchestration
+│   ├── coven-swarm-backend/      # Swarm storage backends
+│   ├── coven-swarm-core/         # Swarm core types
+│   ├── coven-tui/                # Terminal UI
+│   └── coven-cli/                # Unified CLI
 ├── proto/                        # Git submodule for .proto files
 ├── scripts/                      # Build scripts (XCFramework, etc.)
 └── .github/workflows/            # CI/CD
@@ -37,24 +37,24 @@ The crates form a layered dependency graph:
 
 ```
 Layer 0 (no internal deps):
-  fold-proto, fold-ssh, fold-swarm-core
+  coven-proto, coven-ssh, coven-swarm-core
 
 Layer 1:
-  fold-grpc (depends on: fold-proto)
-  fold-pack (no internal deps, but defines traits)
+  coven-grpc (depends on: coven-proto)
+  coven-pack (no internal deps, but defines traits)
 
 Layer 2:
-  fold-client (depends on: fold-grpc, fold-ssh)
-  fold-core (depends on: fold-pack)
-  fold-swarm-backend (depends on: fold-swarm-core)
+  coven-client (depends on: coven-grpc, coven-ssh)
+  coven-core (depends on: coven-pack)
+  coven-swarm-backend (depends on: coven-swarm-core)
 
 Layer 3:
-  fold-agent (depends on: fold-core, fold-pack)
-  fold-swarm (depends on: fold-swarm-core, fold-swarm-backend)
+  coven-agent (depends on: coven-core, coven-pack)
+  coven-swarm (depends on: coven-swarm-core, coven-swarm-backend)
 
 Layer 4:
-  fold-tui (depends on: fold-client)
-  fold-cli (depends on: fold-client, fold-swarm)
+  coven-tui (depends on: coven-client)
+  coven-cli (depends on: coven-client, coven-swarm)
 ```
 
 ## Development
@@ -88,14 +88,9 @@ All external dependencies should be declared in the root `Cargo.toml` under `[wo
 
 ## Migration Status
 
-This monorepo is being consolidated from:
-- fold-common (crates: proto, ssh, grpc-client, client, pack)
-- fold-agent (crates: agent, core)
-- fold-swarm (crates: swarm, swarm-backend, swarm-core)
-- fold-packs (various pack implementations)
-- fold-tui
+This monorepo was consolidated from the original fold-* repositories and renamed to coven.
 
-Current status: **Skeleton created, awaiting code migration**
+Current status: **Fully migrated and renamed**
 
 ## Coding Standards
 

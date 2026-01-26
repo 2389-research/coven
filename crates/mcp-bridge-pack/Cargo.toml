@@ -1,5 +1,5 @@
 # ABOUTME: Cargo manifest for mcp-bridge-pack crate
-# ABOUTME: MCP server wrapper exposing MCP tools to fold agents
+# ABOUTME: MCP server wrapper exposing MCP tools to coven agents
 
 [package]
 name = "mcp-bridge-pack"
@@ -7,7 +7,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "MCP bridge pack that wraps MCP servers and exposes their tools to fold agents"
+description = "MCP bridge pack that wraps MCP servers and exposes their tools to coven agents"
 
 [[bin]]
 name = "mcp-bridge-pack"
@@ -15,9 +15,9 @@ path = "src/main.rs"
 
 [dependencies]
 # Internal crates
-fold-pack.workspace = true
-fold-proto.workspace = true
-fold-ssh.workspace = true
+coven-pack.workspace = true
+coven-proto.workspace = true
+coven-ssh.workspace = true
 
 # Async runtime
 tokio = { workspace = true, features = ["process", "io-util"] }

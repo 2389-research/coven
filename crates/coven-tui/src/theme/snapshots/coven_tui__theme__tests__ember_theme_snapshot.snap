@@ -1,0 +1,20 @@
+---
+source: crates/coven-tui/src/theme/mod.rs
+expression: theme_to_snapshot(&EMBER_THEME)
+---
+Theme: ember
+  background: rgb(28, 20, 18)
+  surface: rgb(42, 30, 26)
+  surface_dim: rgb(34, 24, 20)
+  text: rgb(240, 225, 210)
+  text_muted: rgb(160, 140, 120)
+  text_inverse: rgb(28, 20, 18)
+  primary: rgb(255, 140, 60)
+  accent: rgb(255, 100, 80)
+  success: rgb(140, 200, 100)
+  warning: rgb(255, 200, 80)
+  error: rgb(255, 80, 80)
+  user_message: rgb(255, 160, 80)
+  agent_message: rgb(255, 120, 100)
+  thinking: rgb(255, 200, 120)
+  tool_use: rgb(200, 180, 120)

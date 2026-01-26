@@ -1,5 +1,5 @@
-# ABOUTME: Workspace root for the fold monorepo
-# ABOUTME: Consolidates all fold Rust crates into a single workspace
+# ABOUTME: Workspace root for the coven monorepo
+# ABOUTME: Consolidates all coven Rust crates into a single workspace
 
 [workspace]
 resolver = "2"
@@ -9,7 +9,7 @@ members = ["crates/*"]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/2389-research/fold"
+repository = "https://github.com/2389-research/coven"
 
 [workspace.dependencies]
 # Async
@@ -83,16 +83,15 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # LLM
 mux = { git = "https://github.com/2389-research/mux-rs", branch = "main" }
 
-# Internal crates (uncomment as we migrate)
-fold-proto = { path = "crates/fold-proto" }
-fold-ssh = { path = "crates/fold-ssh" }
-fold-grpc = { path = "crates/fold-grpc" }
-fold-client = { path = "crates/fold-client" }
-fold-pack = { path = "crates/fold-pack" }
-fold-core = { path = "crates/fold-core" }
-fold-agent = { path = "crates/fold-agent" }
-fold-swarm = { path = "crates/fold-swarm" }
-fold-swarm-backend = { path = "crates/fold-swarm-backend" }
-fold-swarm-core = { path = "crates/fold-swarm-core" }
-fold-tui = { path = "crates/fold-tui" }
-# fold-cli = { path = "crates/fold-cli" }
+# Internal crates
+coven-proto = { path = "crates/coven-proto" }
+coven-ssh = { path = "crates/coven-ssh" }
+coven-grpc = { path = "crates/coven-grpc" }
+coven-client = { path = "crates/coven-client" }
+coven-pack = { path = "crates/coven-pack" }
+coven-core = { path = "crates/coven-core" }
+coven-agent = { path = "crates/coven-agent" }
+coven-swarm = { path = "crates/coven-swarm" }
+coven-swarm-backend = { path = "crates/coven-swarm-backend" }
+coven-swarm-core = { path = "crates/coven-swarm-core" }
+coven-tui = { path = "crates/coven-tui" }

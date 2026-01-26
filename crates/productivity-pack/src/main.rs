@@ -8,8 +8,8 @@ mod todo;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use db::{Database, TodoFilter};
-use fold_pack::{ManifestBuilder, PackClient, SchemaBuilder, ToolError, ToolHandler};
-use fold_ssh::load_or_generate_key;
+use coven_pack::{ManifestBuilder, PackClient, SchemaBuilder, ToolError, ToolHandler};
+use coven_ssh::load_or_generate_key;
 use notes::{
     NoteCreateInput, NoteCreateOutput, NoteReadInput, NoteReadOutput, NoteSearchInput,
     NoteSearchOutput,
@@ -29,7 +29,7 @@ fn xdg_data_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
-        .map(|p| p.join("fold"))
+        .map(|p| p.join("coven"))
 }
 
 struct ProductivityHandler {
@@ -162,7 +162,7 @@ impl ToolHandler for ProductivityHandler {
     }
 }
 
-fn build_manifest() -> fold_proto::PackManifest {
+fn build_manifest() -> coven_proto::PackManifest {
     // Todo schemas
     let todo_add_schema = SchemaBuilder::object()
         .property(
@@ -274,7 +274,7 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    let config = fold_pack::PackConfig::load(PACK_NAME).map_err(|e| anyhow!("{}", e))?;
+    let config = coven_pack::PackConfig::load(PACK_NAME).map_err(|e| anyhow!("{}", e))?;
 
     // Use PRODUCTIVITY_DB_PATH env var if set, otherwise use XDG data path
     let db_path = std::env::var("PRODUCTIVITY_DB_PATH")

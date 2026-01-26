@@ -1,0 +1,131 @@
+// ABOUTME: UniFFI definition file for coven-client
+// ABOUTME: Defines the FFI interface for Swift/Kotlin
+
+namespace coven_client {
+};
+
+// ============================================================================
+// Models
+// ============================================================================
+
+dictionary Agent {
+    string id;
+    string name;
+    string backend;
+    string working_dir;
+    boolean connected;
+};
+
+dictionary Message {
+    string id;
+    string sender;
+    string content;
+    i64 timestamp;
+    boolean is_user;
+};
+
+dictionary UsageInfo {
+    i32 input_tokens;
+    i32 output_tokens;
+    i32 cache_read_tokens;
+    i32 cache_write_tokens;
+    i32 thinking_tokens;
+};
+
+[Enum]
+interface StreamEvent {
+    Text(string content);
+    Thinking(string content);
+    ToolUse(string name, string input);
+    ToolResult(string tool_id, string result);
+    ToolState(string state, string detail);
+    Usage(UsageInfo info);
+    Done();
+    Error(string message);
+};
+
+[Enum]
+interface ConnectionStatus {
+    Connecting();
+    Connected();
+    Disconnected();
+};
+
+// ============================================================================
+// Errors
+// ============================================================================
+
+[Error]
+enum CovenError {
+    "Connection",
+    "Api",
+    "Stream",
+    "AgentNotFound",
+    "AlreadyStreaming",
+    "InvalidResponse",
+};
+
+// ============================================================================
+// Callbacks
+// ============================================================================
+
+callback interface StreamCallback {
+    void on_event(string agent_id, StreamEvent event);
+};
+
+callback interface StateCallback {
+    void on_connection_status(ConnectionStatus status);
+    void on_messages_changed(string agent_id);
+    void on_queue_changed(string agent_id, u32 count);
+    void on_unread_changed(string agent_id, u32 count);
+    void on_streaming_changed(string agent_id, boolean is_streaming);
+};
+
+// ============================================================================
+// Client
+// ============================================================================
+
+interface CovenClient {
+    constructor(string gateway_url);
+
+    // Callbacks
+    void set_stream_callback(StreamCallback callback);
+    void set_state_callback(StateCallback callback);
+
+    // Connection & Agents (sync - blocks internally using Tokio runtime)
+    [Throws=CovenError]
+    void check_health();
+
+    [Throws=CovenError]
+    sequence<Agent> refresh_agents();
+
+    sequence<Agent> get_agents();
+
+    Agent? get_agent(string agent_id);
+
+    // Messages & History
+    sequence<Message> get_messages(string agent_id);
+
+    [Throws=CovenError]
+    sequence<Message> load_history(string agent_id);
+
+    u32 get_unread(string agent_id);
+
+    void clear_unread(string agent_id);
+
+    // Sending Messages
+    [Throws=CovenError]
+    void send_message(string agent_id, string content);
+
+    boolean is_streaming(string agent_id);
+
+    string get_stream_buffer(string agent_id);
+
+    void cancel_stream(string agent_id);
+
+    // Queue Management
+    u32 get_queue_count(string agent_id);
+
+    // Session Stats
+    UsageInfo get_session_usage();
+};

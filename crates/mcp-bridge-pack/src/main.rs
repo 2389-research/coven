@@ -1,13 +1,13 @@
 // ABOUTME: MCP bridge pack that wraps any MCP server.
-// ABOUTME: Dynamically discovers tools from MCP and exposes them to fold agents.
+// ABOUTME: Dynamically discovers tools from MCP and exposes them to coven agents.
 
 mod mcp_client;
 mod tools;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use fold_pack::{ManifestBuilder, PackClient, ToolError, ToolHandler};
-use fold_ssh::{load_or_generate_key, xdg_config_dir};
+use coven_pack::{ManifestBuilder, PackClient, ToolError, ToolHandler};
+use coven_ssh::{load_or_generate_key, xdg_config_dir};
 use mcp_client::McpClient;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -18,7 +18,7 @@ use tracing::{error, info, warn};
 
 const DEFAULT_PACK_ID: &str = "mcp-bridge";
 
-/// Get the default SSH key path for this pack (~/.config/fold/packs/<pack-id>/id_ed25519).
+/// Get the default SSH key path for this pack (~/.config/coven/packs/<pack-id>/id_ed25519).
 fn default_pack_key_path(pack_id: &str) -> Option<PathBuf> {
     xdg_config_dir().map(|p| p.join("packs").join(pack_id).join("id_ed25519"))
 }
@@ -192,7 +192,7 @@ async fn main() -> Result<()> {
     let mcp_tools = client.list_tools().await?;
     info!(count = mcp_tools.len(), "Discovered MCP tools");
 
-    // Convert MCP tools to fold tool definitions
+    // Convert MCP tools to coven tool definitions
     let tool_definitions = tools::mcp_tools_to_definitions(&mcp_tools);
     let mcp_tool_names: Vec<String> = mcp_tools.iter().map(|t| t.name.clone()).collect();
 

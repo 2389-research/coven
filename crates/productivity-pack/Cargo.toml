@@ -15,9 +15,9 @@ path = "src/main.rs"
 
 [dependencies]
 # Internal crates
-fold-pack.workspace = true
-fold-proto.workspace = true
-fold-ssh.workspace = true
+coven-pack.workspace = true
+coven-proto.workspace = true
+coven-ssh.workspace = true
 
 # Async runtime
 tokio.workspace = true

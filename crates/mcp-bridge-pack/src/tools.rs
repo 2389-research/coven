@@ -1,10 +1,10 @@
 // ABOUTME: Dynamic tool registration from MCP server capabilities.
-// ABOUTME: Converts MCP tools/resources/prompts to fold-pack tool definitions.
+// ABOUTME: Converts MCP tools/resources/prompts to coven-pack tool definitions.
 
 use crate::mcp_client::McpTool;
-use fold_proto::ToolDefinition;
+use coven_proto::ToolDefinition;
 
-/// Convert MCP tools to fold ToolDefinitions.
+/// Convert MCP tools to coven ToolDefinitions.
 pub fn mcp_tools_to_definitions(tools: &[McpTool]) -> Vec<ToolDefinition> {
     tools
         .iter()

@@ -193,7 +193,7 @@ pub struct ClientInfo {
 impl Default for ClientInfo {
     fn default() -> Self {
         Self {
-            name: "fold-mcp-bridge".to_string(),
+            name: "coven-mcp-bridge".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }

@@ -3,8 +3,8 @@
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use fold_pack::{ManifestBuilder, PackClient, SchemaBuilder, ToolError, ToolHandler};
-use fold_ssh::load_or_generate_key;
+use coven_pack::{ManifestBuilder, PackClient, SchemaBuilder, ToolError, ToolHandler};
+use coven_ssh::load_or_generate_key;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    let config = fold_pack::PackConfig::load(PACK_NAME).map_err(|e| anyhow!("{}", e))?;
+    let config = coven_pack::PackConfig::load(PACK_NAME).map_err(|e| anyhow!("{}", e))?;
 
     info!("Starting {}", PACK_NAME);
     info!("Gateway: {}", config.gateway_url);
