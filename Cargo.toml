@@ -40,6 +40,7 @@ dotenvy = "0.15"
 
 # Testing
 tempfile = "3"
+insta = "1"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -68,6 +69,8 @@ clap = { version = "4", features = ["derive", "env"] }
 # TUI
 ratatui = "0.29"
 crossterm = "0.28"
+tui-textarea = "0.7"
+clap_complete = "4"
 
 # Error handling
 anyhow = "1"
@@ -91,5 +94,5 @@ fold-agent = { path = "crates/fold-agent" }
 fold-swarm = { path = "crates/fold-swarm" }
 fold-swarm-backend = { path = "crates/fold-swarm-backend" }
 fold-swarm-core = { path = "crates/fold-swarm-core" }
-# fold-tui = { path = "crates/fold-tui" }
+fold-tui = { path = "crates/fold-tui" }
 # fold-cli = { path = "crates/fold-cli" }

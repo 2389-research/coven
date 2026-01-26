@@ -1,0 +1,10 @@
+---
+source: src/theme/mod.rs
+expression: "themes.join(\"\\n\")"
+---
+default
+light
+midnight
+ember
+matrix
+rose
