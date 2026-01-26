@@ -1,0 +1,10 @@
+---
+source: crates/fold-tui/src/theme/mod.rs
+expression: "themes.join(\"\\n\")"
+---
+default
+light
+midnight
+ember
+matrix
+rose

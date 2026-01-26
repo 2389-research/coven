@@ -9,6 +9,10 @@ license.workspace = true
 repository.workspace = true
 description = "Terminal UI for Fold - Chat with AI agents"
 
+[lib]
+name = "fold_tui"
+path = "src/lib.rs"
+
 [[bin]]
 name = "folder"
 path = "src/main.rs"

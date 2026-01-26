@@ -1,0 +1,5 @@
+---
+source: crates/fold-tui/src/state/config.rs
+expression: "format!(\"{:?}\", config)"
+---
+Config { gateway: GatewayConfig { host: "localhost", port: 50051, use_tls: false }, appearance: AppearanceConfig { theme: "default" } }

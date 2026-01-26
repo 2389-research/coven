@@ -1,0 +1,20 @@
+---
+source: crates/fold-tui/src/theme/mod.rs
+expression: theme_to_snapshot(&MATRIX_THEME)
+---
+Theme: matrix
+  background: rgb(0, 0, 0)
+  surface: rgb(10, 15, 10)
+  surface_dim: rgb(5, 8, 5)
+  text: rgb(0, 255, 65)
+  text_muted: rgb(0, 140, 40)
+  text_inverse: rgb(0, 0, 0)
+  primary: rgb(0, 255, 100)
+  accent: rgb(100, 255, 100)
+  success: rgb(0, 255, 0)
+  warning: rgb(200, 255, 0)
+  error: rgb(255, 60, 60)
+  user_message: rgb(80, 255, 120)
+  agent_message: rgb(0, 220, 80)
+  thinking: rgb(180, 255, 80)
+  tool_use: rgb(0, 200, 150)
