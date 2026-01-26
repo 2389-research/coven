@@ -165,29 +165,7 @@ async fn main() -> Result<()> {
 
 /// Run the first-time setup wizard
 async fn run_init() -> Result<()> {
-    println!("fold init - First-time setup wizard");
-    println!();
-    println!("This wizard will help you configure fold for your environment.");
-    println!();
-
-    // Check for existing configuration
-    let config_dir = dirs::config_dir()
-        .map(|p| p.join("fold"))
-        .unwrap_or_else(|| PathBuf::from(".fold"));
-
-    if config_dir.exists() {
-        println!("Configuration directory already exists: {}", config_dir.display());
-        println!("Run 'fold agent new' to create a new agent configuration.");
-    } else {
-        println!("TODO: Interactive setup wizard");
-        println!("  - Configure gateway connection");
-        println!("  - Set up SSH keys");
-        println!("  - Create initial agent configuration");
-        println!();
-        println!("For now, use 'fold agent new' to create agent configurations.");
-    }
-
-    Ok(())
+    fold_swarm::run_init()
 }
 
 /// Handle swarm subcommands
@@ -260,20 +238,9 @@ async fn run_agent(cmd: AgentCommands) -> Result<()> {
 
 /// Open the TUI chat interface
 async fn run_chat(gateway: Option<String>, theme: Option<String>) -> Result<()> {
-    println!("fold chat");
-    println!("  gateway: {:?}", gateway);
-    println!("  theme: {:?}", theme);
-    println!();
-    println!("TODO: Delegate to fold-tui (folder)");
-    let mut args = String::new();
-    if let Some(g) = gateway {
-        args.push_str(&format!(" --gateway {}", g));
-    }
-    if let Some(t) = theme {
-        args.push_str(&format!(" --theme {}", t));
-    }
-    println!("  Run: folder{}", args);
-    Ok(())
+    fold_tui::run_chat(gateway, theme)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))
 }
 
 /// Handle pack subcommands

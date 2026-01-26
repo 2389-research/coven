@@ -6,4 +6,5 @@ pub mod init;
 pub mod supervisor;
 
 pub use agent::{GatewayClient, Session};
+pub use init::run_init;
 pub use supervisor::{discover_workspaces, socket, AgentProcess, Tui, TuiEvent};

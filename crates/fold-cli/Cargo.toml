@@ -23,6 +23,8 @@ dotenvy.workspace = true
 # Internal fold crates
 fold-client.workspace = true
 fold-pack.workspace = true
+fold-swarm.workspace = true
+fold-tui.workspace = true
 
 [[bin]]
 name = "fold"

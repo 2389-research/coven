@@ -1146,6 +1146,8 @@ dependencies = [
  "dotenvy",
  "fold-client",
  "fold-pack",
+ "fold-swarm",
+ "fold-tui",
  "serde",
  "thiserror 2.0.18",
  "tokio",
