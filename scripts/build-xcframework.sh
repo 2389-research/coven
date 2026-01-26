@@ -1,15 +1,102 @@
-#!/usr/bin/env bash
-# ABOUTME: Build script for iOS/macOS XCFramework
-# ABOUTME: Compiles fold-client for Apple platforms
+#!/bin/bash
+# ABOUTME: Builds FoldClientFFI.xcframework for iOS integration
+# ABOUTME: Creates universal static library with Swift bindings for xtool/SwiftPM
 
-set -euo pipefail
+set -e
 
-echo "XCFramework build script - placeholder for migration"
-echo "This will build fold-client for iOS and macOS targets"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+OUTPUT_DIR="$ROOT_DIR/FoldClientFFI.xcframework"
+BINDINGS_DIR="$ROOT_DIR/crates/fold-client/bindings"
 
-# Placeholder targets:
-# - aarch64-apple-ios
-# - aarch64-apple-ios-sim
-# - x86_64-apple-ios
-# - aarch64-apple-darwin
-# - x86_64-apple-darwin
+cd "$ROOT_DIR"
+
+# Verify required Rust targets are installed
+echo "==> Checking Rust targets..."
+REQUIRED_TARGETS="aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin"
+INSTALLED_TARGETS=$(rustup target list --installed)
+MISSING=""
+for target in $REQUIRED_TARGETS; do
+    if ! echo "$INSTALLED_TARGETS" | grep -q "$target"; then
+        MISSING="$MISSING $target"
+    fi
+done
+if [ -n "$MISSING" ]; then
+    echo "ERROR: Missing Rust targets:$MISSING"
+    echo "Install with: rustup target add$MISSING"
+    exit 1
+fi
+echo "  All required targets installed"
+
+echo "==> Building fold-client for iOS targets..."
+
+# Build for iOS device (arm64)
+echo "  -> aarch64-apple-ios (device)"
+cargo build --release --package fold-client --target aarch64-apple-ios
+
+# Build for iOS simulator (arm64)
+echo "  -> aarch64-apple-ios-sim (simulator arm64)"
+cargo build --release --package fold-client --target aarch64-apple-ios-sim
+
+# Build for iOS simulator (x86_64)
+echo "  -> x86_64-apple-ios (simulator x86_64)"
+cargo build --release --package fold-client --target x86_64-apple-ios
+
+echo "==> Building fold-client for macOS targets..."
+
+# Build for macOS (arm64 - Apple Silicon)
+echo "  -> aarch64-apple-darwin (macOS arm64)"
+cargo build --release --package fold-client --target aarch64-apple-darwin
+
+# Build for macOS (x86_64 - Intel)
+echo "  -> x86_64-apple-darwin (macOS x86_64)"
+cargo build --release --package fold-client --target x86_64-apple-darwin
+
+echo "==> Creating universal simulator library..."
+mkdir -p target/universal-sim
+lipo -create \
+    target/aarch64-apple-ios-sim/release/libfold_client.a \
+    target/x86_64-apple-ios/release/libfold_client.a \
+    -output target/universal-sim/libfold_client.a
+
+echo "==> Creating universal macOS library..."
+mkdir -p target/universal-macos
+lipo -create \
+    target/aarch64-apple-darwin/release/libfold_client.a \
+    target/x86_64-apple-darwin/release/libfold_client.a \
+    -output target/universal-macos/libfold_client.a
+
+echo "==> Creating module map..."
+mkdir -p "$BINDINGS_DIR"
+cat > "$BINDINGS_DIR/module.modulemap" << 'EOF'
+module fold_clientFFI {
+    header "fold_clientFFI.h"
+    export *
+}
+EOF
+
+echo "==> Removing old XCFramework..."
+rm -rf "$OUTPUT_DIR"
+
+echo "==> Creating XCFramework..."
+xcodebuild -create-xcframework \
+    -library target/aarch64-apple-ios/release/libfold_client.a \
+    -headers "$BINDINGS_DIR" \
+    -library target/universal-sim/libfold_client.a \
+    -headers "$BINDINGS_DIR" \
+    -library target/universal-macos/libfold_client.a \
+    -headers "$BINDINGS_DIR" \
+    -output "$OUTPUT_DIR"
+
+echo "==> XCFramework created at: $OUTPUT_DIR"
+echo ""
+echo "Contents:"
+find "$OUTPUT_DIR" -type f -name "*.a" -o -name "*.h" -o -name "*.modulemap" | head -20
+
+echo ""
+echo "Done! Add this to your Package.swift:"
+echo ""
+echo '    .binaryTarget('
+echo '        name: "FoldClientFFI",'
+echo '        path: "../fold/FoldClientFFI.xcframework"'
+echo '    )'
