@@ -1,0 +1,47 @@
+# ABOUTME: Cargo manifest for coven-matrix-rs crate
+# ABOUTME: Matrix bridge binary that connects Matrix rooms to coven-gateway
+
+[package]
+name = "coven-matrix-rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Matrix bridge for coven-gateway"
+
+[[bin]]
+name = "coven-matrix-bridge"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+coven-proto.workspace = true
+coven-grpc.workspace = true
+
+# Async runtime
+tokio = { workspace = true, features = ["full", "signal"] }
+futures.workspace = true
+
+# gRPC
+tonic.workspace = true
+prost.workspace = true
+
+# Matrix SDK
+matrix-sdk = { version = "0.10", features = ["e2e-encryption", "sqlite"] }
+
+# Config and serialization
+serde = { workspace = true, features = ["derive"] }
+toml.workspace = true
+dirs.workspace = true
+
+# Logging and errors
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+anyhow.workspace = true
+thiserror.workspace = true
+
+# CLI
+clap = { workspace = true, features = ["derive", "env"] }
+
+# Utilities
+uuid = { workspace = true, features = ["v4"] }
