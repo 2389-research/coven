@@ -1,7 +1,7 @@
 # ABOUTME: Build and development commands for the coven monorepo
 # ABOUTME: Handles building, testing, linting, and proto generation
 
-.PHONY: all build release test check clippy fmt clean proto install
+.PHONY: all build release test check clippy fmt clean proto install coven-link
 
 # Default target
 all: check test clippy
@@ -29,6 +29,9 @@ coven-chat:
 
 coven-admin:
 	cargo build -p coven-admin
+
+coven-link:
+	cargo build -p coven-link
 
 # Build release binaries
 coven-release:
@@ -83,6 +86,7 @@ install-all:
 	cargo install --path crates/coven-swarm
 	cargo install --path crates/coven-tui
 	cargo install --path crates/coven-admin
+	cargo install --path crates/coven-link
 
 # Generate UniFFI bindings for Swift/Kotlin
 bindings:
