@@ -38,12 +38,45 @@ enum SelfRegisterResult {
     Failed(String),
 }
 
+/// Check if file permissions are secure (owner-only read on Unix)
+#[cfg(unix)]
+fn check_token_file_permissions(path: &std::path::Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let metadata = std::fs::metadata(path)
+        .map_err(|e| format!("Cannot read file metadata: {}", e))?;
+
+    let mode = metadata.permissions().mode();
+    // Check if group or others have any permissions (bits 0o077)
+    if mode & 0o077 != 0 {
+        return Err(format!(
+            "Token file {} has insecure permissions {:o}. Run: chmod 600 {}",
+            path.display(),
+            mode & 0o777,
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn check_token_file_permissions(_path: &std::path::Path) -> Result<(), String> {
+    // On non-Unix systems, we can't easily check permissions
+    Ok(())
+}
+
 /// Try to self-register the agent using JWT auth from coven-link config
 async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &str) -> Result<SelfRegisterResult> {
     // Load token from ~/.config/coven/token
     let token_path = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?
         .join(".config/coven/token");
+
+    // Check file permissions before reading
+    if let Err(warning) = check_token_file_permissions(&token_path) {
+        eprintln!("  WARNING: {}", warning);
+        // Continue anyway but warn - don't block users on permission issues
+    }
 
     let token = match std::fs::read_to_string(&token_path) {
         Ok(t) => t.trim().to_string(),
