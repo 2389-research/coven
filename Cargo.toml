@@ -95,3 +95,4 @@ coven-swarm = { path = "crates/coven-swarm" }
 coven-swarm-backend = { path = "crates/coven-swarm-backend" }
 coven-swarm-core = { path = "crates/coven-swarm-core" }
 coven-tui = { path = "crates/coven-tui" }
+coven-link = { path = "crates/coven-link" }
