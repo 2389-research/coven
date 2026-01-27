@@ -3,6 +3,10 @@
 
 pub mod config;
 pub mod error;
+pub mod gateway;
+pub mod matrix;
 
 pub use config::Config;
 pub use error::{BridgeError, Result};
+pub use gateway::GatewayClient;
+pub use matrix::MatrixClient;
