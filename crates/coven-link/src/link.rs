@@ -44,9 +44,10 @@ pub async fn run(gateway: String, name: Option<String>, key_path: Option<String>
     println!();
 
     // Load or generate SSH key
-    let key_path = key_path
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| CovenConfig::key_path().unwrap());
+    let key_path = match key_path {
+        Some(p) => std::path::PathBuf::from(p),
+        None => CovenConfig::key_path().context("Failed to determine key path")?,
+    };
 
     println!(
         "{} Loading SSH key from {}...",
@@ -71,8 +72,12 @@ pub async fn run(gateway: String, name: Option<String>, key_path: Option<String>
         gateway_http
     );
 
-    // Request link code
-    let client = reqwest::Client::new();
+    // Request link code (with timeout)
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(10))
+        .build()
+        .context("Failed to create HTTP client")?;
     let resp = client
         .post(format!("{}/admin/api/link/request", gateway_http))
         .json(&serde_json::json!({
@@ -222,7 +227,16 @@ fn derive_grpc_address(gateway: &str) -> String {
         .trim_end_matches('/');
 
     // Extract hostname (strip port if present)
-    let hostname = if let Some(idx) = url.rfind(':') {
+    // Handle IPv6 addresses like [::1]:443
+    let hostname = if url.starts_with('[') {
+        // IPv6 address: [::1]:443 or [::1]
+        if let Some(bracket_end) = url.find(']') {
+            &url[..=bracket_end]
+        } else {
+            url
+        }
+    } else if let Some(idx) = url.rfind(':') {
+        // IPv4 or hostname with port
         &url[..idx]
     } else {
         url
