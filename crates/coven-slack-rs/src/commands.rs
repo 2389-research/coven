@@ -140,7 +140,7 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
                         .as_ref()
                         .map(|m| m.working_directory.as_str())
                         .unwrap_or("unknown");
-                    response.push_str(&format!("• `{}` _({})",
+                    response.push_str(&format!("• `{}` _({})\n",
                         agent.id,
                         working_dir
                     ));

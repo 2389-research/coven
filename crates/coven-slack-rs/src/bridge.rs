@@ -197,7 +197,7 @@ impl Bridge {
         {
             error!(error = %e, channel_id = %channel_id, "Failed to process message");
             // Send error to Slack
-            let error_msg = format!(":warning: Error: {}", e);
+            let error_msg = format!(":x: Error: {}", e);
             let _ = self
                 .slack
                 .post_message(channel_id, &error_msg, thread_ts.as_deref())

@@ -16,7 +16,7 @@ pub struct Config {
 }
 
 /// Slack API credentials for Socket Mode connection.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct SlackConfig {
     /// App-level token (xapp-...) for Socket Mode WebSocket connection.
     pub app_token: String,
@@ -24,14 +24,32 @@ pub struct SlackConfig {
     pub bot_token: String,
 }
 
+impl std::fmt::Debug for SlackConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SlackConfig")
+            .field("app_token", &"[REDACTED]")
+            .field("bot_token", &"[REDACTED]")
+            .finish()
+    }
+}
+
 /// Gateway connection configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct GatewayConfig {
     /// gRPC URL for coven-gateway (e.g., "http://localhost:6666").
     pub url: String,
     /// Authentication token for gateway API calls.
     #[serde(default)]
     pub token: Option<String>,
+}
+
+impl std::fmt::Debug for GatewayConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayConfig")
+            .field("url", &self.url)
+            .field("token", &self.token.as_ref().map(|_| "[REDACTED]"))
+            .finish()
+    }
 }
 
 /// Bridge behavior configuration.

@@ -22,9 +22,6 @@ pub enum BridgeError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-
-    #[error("Channel send error")]
-    ChannelSend,
 }
 
 pub type Result<T> = std::result::Result<T, BridgeError>;

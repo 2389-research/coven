@@ -335,28 +335,6 @@ fn test_context_should_respond_channel_all_mode() {
     assert!(ctx.should_respond(ResponseMode::All, true));
 }
 
-#[test]
-fn test_context_reply_thread_ts() {
-    // Thread context returns thread_ts for replies
-    let thread_ctx = SlackContext::Thread {
-        channel_id: "C12345".to_string(),
-        thread_ts: "1234.5678".to_string(),
-    };
-    assert_eq!(thread_ctx.reply_thread_ts(), Some("1234.5678"));
-
-    // Channel context returns None (caller decides whether to start new thread)
-    let channel_ctx = SlackContext::Channel {
-        channel_id: "C12345".to_string(),
-    };
-    assert!(channel_ctx.reply_thread_ts().is_none());
-
-    // DM context returns None
-    let dm_ctx = SlackContext::DirectMessage {
-        channel_id: "D12345".to_string(),
-    };
-    assert!(dm_ctx.reply_thread_ts().is_none());
-}
-
 // ============================================================================
 // Response Mode Tests
 // ============================================================================

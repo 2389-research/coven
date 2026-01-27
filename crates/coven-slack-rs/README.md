@@ -115,6 +115,12 @@ The bot responds based on context and configuration:
 - `SLACK_BOT_TOKEN` - Slack bot token
 - `COVEN_TOKEN` - Gateway authentication token
 
+## Known Limitations
+
+- **Typing indicator**: The `typing_indicator` config option is not yet implemented
+- **Gateway reconnection**: If the gateway connection drops, the bridge does not auto-reconnect (restart required)
+- **Bindings persistence**: Channel bindings are stored in memory only; they are lost on restart
+
 ## Building
 
 ```bash

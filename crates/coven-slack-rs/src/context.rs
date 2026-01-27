@@ -78,18 +78,6 @@ impl SlackContext {
         }
     }
 
-    /// Get the thread_ts to use for replies.
-    /// For thread contexts, returns the existing thread_ts.
-    /// For channel contexts when thread_replies is enabled, returns None (caller should use message_ts).
-    /// For DM contexts, returns None (no threading in DMs typically).
-    pub fn reply_thread_ts(&self) -> Option<&str> {
-        match self {
-            SlackContext::Thread { thread_ts, .. } => Some(thread_ts),
-            SlackContext::Channel { .. } => None,
-            SlackContext::DirectMessage { .. } => None,
-        }
-    }
-
     /// Check if this is a direct message context.
     pub fn is_dm(&self) -> bool {
         matches!(self, SlackContext::DirectMessage { .. })

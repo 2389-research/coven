@@ -36,7 +36,8 @@ allowed_channels = [
 response_mode = "mention"
 
 # Show typing indicator while agent is processing (Slack doesn't support
-# true typing indicators, but the bot can post a "thinking..." message)
+# true typing indicators, but the bot can post a "thinking..." message).
+# NOTE: Not yet implemented - this config option is a placeholder.
 typing_indicator = true
 
 # Post responses in threads (keeps channels cleaner)
