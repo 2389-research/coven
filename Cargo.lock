@@ -1063,6 +1063,7 @@ dependencies = [
  "prost",
  "serde",
  "shellexpand",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "toml 0.8.23",
