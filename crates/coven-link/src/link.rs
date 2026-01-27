@@ -221,6 +221,14 @@ fn normalize_gateway_url(gateway: &str) -> String {
 
 /// Derives gRPC address from gateway URL
 fn derive_grpc_address(gateway: &str) -> String {
+    // Default to http for gRPC (TLS usually handled at network layer e.g. Tailscale)
+    // Only use https if gateway URL explicitly starts with https://
+    let scheme = if gateway.starts_with("https://") {
+        "https://"
+    } else {
+        "http://"
+    };
+
     let url = gateway
         .trim_start_matches("http://")
         .trim_start_matches("https://")
@@ -242,5 +250,5 @@ fn derive_grpc_address(gateway: &str) -> String {
         url
     };
 
-    format!("{}:50051", hostname)
+    format!("{}{}:50051", scheme, hostname)
 }

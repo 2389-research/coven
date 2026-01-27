@@ -3,11 +3,41 @@
 
 use anyhow::Result;
 use clap::Parser;
+use serde::Deserialize;
 
 mod client;
 mod commands;
 
 use commands::{Cli, Command};
+
+/// Config file structure (subset of what coven-link writes)
+#[derive(Deserialize, Default)]
+struct CovenConfig {
+    #[serde(default)]
+    gateway: Option<String>,
+    #[serde(default)]
+    token: Option<String>,
+}
+
+impl CovenConfig {
+    fn load() -> Self {
+        dirs::home_dir()
+            .map(|d| d.join(".config/coven/config.toml"))
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .and_then(|s| toml::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+}
+
+/// Normalize gateway address to include scheme
+fn normalize_gateway(gateway: &str) -> String {
+    let g = gateway.trim();
+    if g.starts_with("http://") || g.starts_with("https://") {
+        return g.to_string();
+    }
+    // Default to http for gRPC (TLS usually handled at network layer e.g. Tailscale)
+    format!("http://{}", g)
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,23 +54,22 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Determine gateway address
-    let gateway = cli.gateway.unwrap_or_else(|| {
-        std::env::var("COVEN_GATEWAY_GRPC").unwrap_or_else(|_| "http://localhost:50051".to_string())
-    });
+    // Load config file for defaults
+    let config = CovenConfig::load();
 
-    // Determine token (CLI flag > env var > token file)
+    // Determine gateway address (CLI > env > config > default)
+    let gateway = cli
+        .gateway
+        .or_else(|| std::env::var("COVEN_GATEWAY_GRPC").ok())
+        .or(config.gateway)
+        .map(|g| normalize_gateway(&g))
+        .unwrap_or_else(|| "http://localhost:50051".to_string());
+
+    // Determine token (CLI > env > config)
     let token = cli
         .token
         .or_else(|| std::env::var("COVEN_TOKEN").ok())
-        .or_else(|| {
-            // Try reading from token file (~/.config/coven/token)
-            dirs::home_dir()
-                .map(|d| d.join(".config/coven/token"))
-                .and_then(|p| std::fs::read_to_string(p).ok())
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-        });
+        .or(config.token);
 
     match cli.command {
         Command::Me => commands::me::run(&gateway, token.as_deref()).await,
