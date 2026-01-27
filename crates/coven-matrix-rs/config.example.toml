@@ -1,0 +1,34 @@
+# Coven Matrix Bridge Configuration
+
+[matrix]
+# Matrix homeserver URL
+homeserver = "https://matrix.org"
+
+# Bot account credentials (use environment variables in production)
+username = "@coven-bot:matrix.org"
+password = "${MATRIX_PASSWORD}"
+
+# Optional: E2EE recovery key for encrypted rooms
+# recovery_key = "${MATRIX_RECOVERY_KEY}"
+
+# Optional: Directory for Matrix state/crypto storage
+# state_dir = "~/.local/share/coven-matrix-bridge"
+
+[gateway]
+# Coven gateway gRPC URL
+url = "http://localhost:6666"
+
+# Authentication token (from coven-link or gateway admin)
+token = "${COVEN_TOKEN}"
+
+[bridge]
+# Optional: Restrict to specific rooms (empty = allow all)
+allowed_rooms = [
+    # "!roomid:matrix.org",
+]
+
+# Optional: Only respond to messages with this prefix
+# command_prefix = "!coven "
+
+# Show typing indicator while agent is responding
+typing_indicator = true
