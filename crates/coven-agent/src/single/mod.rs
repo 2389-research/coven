@@ -156,10 +156,15 @@ pub async fn run(name: &str, agent_id: &str, backend_type: &str, working_dir: &P
                     }
                     InputResult::ApproveTool => {
                         if let Some((tool_id, name, _input)) = pending_tool.take() {
-                            // Update tool status to executing by ID
-                            if let Some(msg) = app.messages.last_mut() {
-                                if let Some(tool) =
-                                    msg.tools.iter_mut().find(|t| t.id == tool_id)
+                            // Update tool status to executing by ID (search backwards since
+                            // System messages may be interleaved during streaming)
+                            if let Some(msg) = app
+                                .messages
+                                .iter_mut()
+                                .rev()
+                                .find(|m| m.role == messages::Role::Agent)
+                            {
+                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id)
                                 {
                                     tool.status = ToolStatus::Executing;
                                 }
@@ -184,10 +189,15 @@ pub async fn run(name: &str, agent_id: &str, backend_type: &str, working_dir: &P
                     }
                     InputResult::DenyTool => {
                         if let Some((tool_id, name, _)) = pending_tool.take() {
-                            // Update tool status to denied by ID
-                            if let Some(msg) = app.messages.last_mut() {
-                                if let Some(tool) =
-                                    msg.tools.iter_mut().find(|t| t.id == tool_id)
+                            // Update tool status to denied by ID (search backwards since
+                            // System messages may be interleaved during streaming)
+                            if let Some(msg) = app
+                                .messages
+                                .iter_mut()
+                                .rev()
+                                .find(|m| m.role == messages::Role::Agent)
+                            {
+                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id)
                                 {
                                     tool.status = ToolStatus::Denied;
                                 }
@@ -211,9 +221,15 @@ pub async fn run(name: &str, agent_id: &str, backend_type: &str, working_dir: &P
                     InputResult::ApproveAll => {
                         // Auto-approve is already set by handle_key
                         if let Some((tool_id, name, _input)) = pending_tool.take() {
-                            if let Some(msg) = app.messages.last_mut() {
-                                if let Some(tool) =
-                                    msg.tools.iter_mut().find(|t| t.id == tool_id)
+                            // Update tool status (search backwards since System messages
+                            // may be interleaved during streaming)
+                            if let Some(msg) = app
+                                .messages
+                                .iter_mut()
+                                .rev()
+                                .find(|m| m.role == messages::Role::Agent)
+                            {
+                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id)
                                 {
                                     tool.status = ToolStatus::Executing;
                                 }
