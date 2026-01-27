@@ -7,7 +7,8 @@ use coven_core::backend::{
 };
 use coven_core::{Config, Coven, IncomingMessage, OutgoingEvent};
 use coven_proto::coven_control_client::CovenControlClient;
-use coven_proto::{AgentMessage, MessageResponse, RegisterAgent, agent_message, server_message};
+use coven_proto::client_service_client::ClientServiceClient;
+use coven_proto::{AgentMessage, MessageResponse, RegisterAgent, RegisterAgentRequest, agent_message, server_message};
 use coven_ssh::{
     SshAuthCredentials, compute_fingerprint, default_agent_key_path, load_or_generate_key,
 };
@@ -25,6 +26,68 @@ use crate::pack_tool::{
 
 /// Maximum number of registration attempts before giving up
 const MAX_REGISTRATION_ATTEMPTS: usize = 100;
+
+/// Try to self-register the agent using JWT auth from coven-link config
+async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &str) -> Result<bool> {
+    // Load token from ~/.config/coven/token
+    let token_path = dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?
+        .join(".config/coven/token");
+
+    let token = match std::fs::read_to_string(&token_path) {
+        Ok(t) => t.trim().to_string(),
+        Err(_) => {
+            eprintln!("  No coven token found at {}. Run 'coven-link' first.", token_path.display());
+            return Ok(false);
+        }
+    };
+
+    if token.is_empty() {
+        eprintln!("  Coven token file is empty. Run 'coven-link' first.");
+        return Ok(false);
+    }
+
+    eprintln!("  Attempting auto-registration...");
+
+    // Connect to ClientService with JWT auth
+    let channel = Channel::from_shared(server_addr.to_string())?
+        .connect()
+        .await?;
+
+    let token_clone = token.clone();
+    let jwt_interceptor = move |mut req: tonic::Request<()>| -> std::result::Result<tonic::Request<()>, tonic::Status> {
+        let auth_value = format!("Bearer {}", token_clone)
+            .parse()
+            .map_err(|_| tonic::Status::internal("invalid token format"))?;
+        req.metadata_mut().insert("authorization", auth_value);
+        Ok(req)
+    };
+
+    let mut client = ClientServiceClient::with_interceptor(channel, jwt_interceptor);
+
+    // Call RegisterAgent
+    let request = RegisterAgentRequest {
+        display_name: display_name.to_string(),
+        fingerprint: fingerprint.to_string(),
+    };
+
+    match client.register_agent(request).await {
+        Ok(response) => {
+            let resp = response.into_inner();
+            eprintln!("  ✓ Agent registered! Principal ID: {}", resp.principal_id);
+            Ok(true)
+        }
+        Err(e) if e.code() == Code::AlreadyExists => {
+            // Already registered - this is fine, just means we can proceed
+            eprintln!("  Agent fingerprint already registered.");
+            Ok(true)
+        }
+        Err(e) => {
+            eprintln!("  Auto-registration failed: {}", e.message());
+            Ok(false)
+        }
+    }
+}
 
 /// Maximum file size allowed for OutgoingEvent::File (10 MB)
 const MAX_FILE_SIZE_BYTES: u64 = 10 * 1024 * 1024;
@@ -165,35 +228,12 @@ pub async fn run(
     eprintln!("  Fingerprint: {}", fingerprint);
     eprintln!("  (Register this fingerprint with the gateway using coven-admin)");
 
-    // Connect to server
-    eprintln!("[2/5] Connecting to gateway at {}...", server_addr);
-    let channel = Channel::from_shared(server_addr.to_string())?
-        .connect()
-        .await?;
-    eprintln!("[3/5] TCP connection established");
-
-    // Create SSH auth interceptor
     let private_key = Arc::new(private_key);
-    let private_key_clone = private_key.clone();
-    let ssh_auth_interceptor = move |mut req: tonic::Request<()>| -> std::result::Result<tonic::Request<()>, tonic::Status> {
-        // Create fresh credentials for each request (timestamp + nonce)
-        match SshAuthCredentials::new(&private_key_clone) {
-            Ok(creds) => {
-                if let Err(e) = creds.apply_to_request(&mut req) {
-                    return Err(tonic::Status::internal(format!("failed to apply SSH auth: {}", e)));
-                }
-            }
-            Err(e) => {
-                return Err(tonic::Status::internal(format!("failed to create SSH auth credentials: {}", e)));
-            }
-        }
-        Ok(req)
-    };
-
-    let mut client = CovenControlClient::with_interceptor(channel, ssh_auth_interceptor);
 
     // Registration retry loop - try with incrementing suffix if name is taken
+    // Also handles auto-registration if fingerprint is unknown
     let mut suffix: usize = 0;
+    let mut needs_reconnect = false;
     let (tx, mut inbound, registered_id) = loop {
         let current_id = if suffix == 0 {
             agent_id.to_string()
@@ -201,12 +241,57 @@ pub async fn run(
             format!("{}-{}", agent_id, suffix)
         };
 
+        // Connect to server (or reconnect after auto-registration)
+        if !needs_reconnect {
+            eprintln!("[2/5] Connecting to gateway at {}...", server_addr);
+        }
+        let channel = Channel::from_shared(server_addr.to_string())?
+            .connect()
+            .await?;
+        if !needs_reconnect {
+            eprintln!("[3/5] TCP connection established");
+        }
+        needs_reconnect = false;
+
+        // Create SSH auth interceptor (fresh each iteration)
+        let private_key_clone = private_key.clone();
+        let ssh_auth_interceptor = move |mut req: tonic::Request<()>| -> std::result::Result<tonic::Request<()>, tonic::Status> {
+            match SshAuthCredentials::new(&private_key_clone) {
+                Ok(creds) => {
+                    if let Err(e) = creds.apply_to_request(&mut req) {
+                        return Err(tonic::Status::internal(format!("failed to apply SSH auth: {}", e)));
+                    }
+                }
+                Err(e) => {
+                    return Err(tonic::Status::internal(format!("failed to create SSH auth credentials: {}", e)));
+                }
+            }
+            Ok(req)
+        };
+
+        let mut client = CovenControlClient::with_interceptor(channel, ssh_auth_interceptor);
+
         // Create bidirectional stream
         let (tx, rx) = mpsc::channel::<AgentMessage>(100);
         let outbound = tokio_stream::wrappers::ReceiverStream::new(rx);
 
         eprintln!("[4/5] Opening bidirectional stream...");
-        let response = client.agent_stream(outbound).await?;
+        let response = match client.agent_stream(outbound).await {
+            Ok(r) => r,
+            Err(e) if e.code() == Code::Unauthenticated && e.message().contains("unknown public key") => {
+                // Try to self-register using coven-link token
+                eprintln!("  Fingerprint not registered. Attempting auto-registration...");
+                if try_self_register(server_addr, &fingerprint, agent_id).await? {
+                    // Set flag to reconnect and restart the loop
+                    eprintln!("  Reconnecting with registered key...");
+                    needs_reconnect = true;
+                    continue;
+                } else {
+                    return Err(e.into());
+                }
+            }
+            Err(e) => return Err(e.into()),
+        };
         let mut inbound = response.into_inner();
         eprintln!("[5/5] Stream established, sending registration...");
 

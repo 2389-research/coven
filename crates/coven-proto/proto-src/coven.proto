@@ -366,6 +366,9 @@ service ClientService {
 
   // List available agents for this principal
   rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+
+  // Register an agent (members can self-register agents)
+  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
 }
 
 // Request to stream events for a conversation
@@ -436,6 +439,18 @@ message ListAgentsRequest {
 
 message ListAgentsResponse {
   repeated AgentInfo agents = 1;
+}
+
+// RegisterAgentRequest allows a linked device to register an agent
+message RegisterAgentRequest {
+  string display_name = 1;        // Name for the agent
+  string fingerprint = 2;         // SSH key fingerprint (SHA256 hex, 64 chars)
+}
+
+// RegisterAgentResponse returns the created principal info
+message RegisterAgentResponse {
+  string principal_id = 1;
+  string status = 2;              // "approved"
 }
 
 // ClientSendMessageRequest is the request for direct client message sending.
