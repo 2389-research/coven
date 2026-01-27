@@ -27,6 +27,8 @@ tonic.workspace = true
 prost.workspace = true
 
 # Matrix SDK
+# Note: e2e-encryption feature is enabled for future E2EE support but not yet implemented.
+# The recovery_key config option exists to enable E2EE setup when the feature is completed.
 matrix-sdk = { version = "0.10", features = ["e2e-encryption", "sqlite"] }
 
 # Config and serialization

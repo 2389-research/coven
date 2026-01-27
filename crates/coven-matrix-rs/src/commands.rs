@@ -1,8 +1,11 @@
 // ABOUTME: Handles /coven commands in Matrix rooms for binding management.
 // ABOUTME: Supports bind, unbind, status, and agents commands.
 
+use crate::bridge::RoomBinding;
 use crate::error::Result;
 use crate::gateway::GatewayClient;
+use matrix_sdk::ruma::OwnedRoomId;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -45,22 +48,54 @@ impl Command {
     }
 }
 
+/// Context required for executing commands that modify state.
+pub struct CommandContext<'a> {
+    pub gateway: &'a Arc<RwLock<GatewayClient>>,
+    pub bindings: &'a Arc<RwLock<HashMap<OwnedRoomId, RoomBinding>>>,
+    pub room_id: &'a OwnedRoomId,
+}
+
 pub async fn execute_command(
     command: Command,
-    gateway: &Arc<RwLock<GatewayClient>>,
+    ctx: CommandContext<'_>,
 ) -> Result<String> {
     match command {
         Command::Bind(agent_id) => {
-            Ok(format!("Binding to agent: {}\nUse `/coven status` to verify.", agent_id))
+            let binding = RoomBinding {
+                room_id: ctx.room_id.clone(),
+                conversation_key: agent_id.clone(),
+            };
+            ctx.bindings.write().await.insert(ctx.room_id.clone(), binding);
+            Ok(format!(
+                "Bound this room to agent: {}\nUse `/coven status` to verify.",
+                agent_id
+            ))
         }
         Command::Unbind => {
-            Ok("Room unbound from agent.".to_string())
+            let removed = ctx.bindings.write().await.remove(ctx.room_id);
+            match removed {
+                Some(binding) => Ok(format!(
+                    "Unbound this room from agent: {}",
+                    binding.conversation_key
+                )),
+                None => Ok("This room was not bound to any agent.".to_string()),
+            }
         }
         Command::Status => {
-            Ok("Status: No agent bound to this room.\nUse `/coven bind <agent-id>` to bind an agent.".to_string())
+            let bindings = ctx.bindings.read().await;
+            match bindings.get(ctx.room_id) {
+                Some(binding) => Ok(format!(
+                    "Status: Bound to agent `{}`\nRoom ID: {}",
+                    binding.conversation_key, ctx.room_id
+                )),
+                None => Ok(format!(
+                    "Status: No agent bound to this room.\nRoom ID: {}\nUse `/coven bind <agent-id>` to bind an agent.",
+                    ctx.room_id
+                )),
+            }
         }
         Command::Agents => {
-            let mut gateway = gateway.write().await;
+            let mut gateway = ctx.gateway.write().await;
             let agents = gateway.list_agents().await?;
 
             if agents.is_empty() {

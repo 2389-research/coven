@@ -4,6 +4,7 @@
 use crate::error::{BridgeError, Result};
 use serde::Deserialize;
 use std::path::PathBuf;
+use tracing::warn;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -18,6 +19,7 @@ pub struct MatrixConfig {
     pub homeserver: String,
     pub username: String,
     pub password: String,
+    /// Recovery key for E2EE session recovery (future feature, not yet implemented).
     #[serde(default)]
     pub recovery_key: Option<String>,
     #[serde(default)]
@@ -57,9 +59,21 @@ impl Config {
             BridgeError::Config(format!("Failed to read config from {:?}: {}", path, e))
         })?;
 
-        // Expand environment variables
-        let contents = shellexpand::env(&contents)
-            .map_err(|e| BridgeError::Config(format!("Failed to expand env vars: {}", e)))?;
+        // Expand environment variables with warning on undefined vars.
+        // Note: Undefined environment variables are replaced with empty strings
+        // but a warning is logged to help users identify configuration issues.
+        let contents = shellexpand::env_with_context_no_errors(&contents, |var: &str| {
+            match std::env::var(var) {
+                Ok(val) => Some(val),
+                Err(_) => {
+                    warn!(
+                        variable = %var,
+                        "Environment variable not defined, using empty string"
+                    );
+                    Some(String::new())
+                }
+            }
+        });
 
         let config: Config = toml::from_str(&contents)
             .map_err(|e| BridgeError::Config(format!("Failed to parse config: {}", e)))?;
@@ -74,6 +88,9 @@ impl Config {
         }
         if self.matrix.username.is_empty() {
             return Err(BridgeError::Config("matrix.username is required".into()));
+        }
+        if self.matrix.password.is_empty() {
+            return Err(BridgeError::Config("matrix.password is required".into()));
         }
         if self.gateway.url.is_empty() {
             return Err(BridgeError::Config("gateway.url is required".into()));

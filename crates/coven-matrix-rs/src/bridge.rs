@@ -1,6 +1,7 @@
 // ABOUTME: Core bridge logic that ties Matrix and Gateway clients together.
-// ABOUTME: Handles message routing, room bindings, and event streaming.
+// ABOUTME: Handles message routing, room bindings, command processing, and event streaming.
 
+use crate::commands::{execute_command, Command, CommandContext};
 use crate::config::Config;
 use crate::error::Result;
 use crate::gateway::GatewayClient;
@@ -130,24 +131,38 @@ impl Bridge {
                         return;
                     }
 
-                    // Check if room is bound
-                    let binding = {
-                        let bindings_read = bindings.read().await;
-                        bindings_read.get(&room_id).cloned()
-                    };
-
-                    let Some(binding) = binding else {
-                        debug!(room_id = %room_id, "Message from unbound room, ignoring");
-                        return;
-                    };
-
                     // Extract text content
                     let Some(text) = extract_text_content(&event) else {
                         debug!(room_id = %room_id, "Non-text message, ignoring");
                         return;
                     };
 
-                    // Check for command prefix if configured
+                    // Check for /coven commands FIRST, before binding check
+                    // Commands work regardless of room binding status
+                    if let Some(command) = Command::parse(&text) {
+                        info!(room_id = %room_id, sender = %event.sender, "Processing /coven command");
+                        let ctx = CommandContext {
+                            gateway: &gateway,
+                            bindings: &bindings,
+                            room_id: &room_id,
+                        };
+                        let response = match execute_command(command, ctx).await {
+                            Ok(resp) => resp,
+                            Err(e) => format!("Command error: {}", e),
+                        };
+                        // Send command response to room
+                        if let Err(e) = room
+                            .send(
+                                matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&response),
+                            )
+                            .await
+                        {
+                            error!(error = %e, "Failed to send command response to room");
+                        }
+                        return;
+                    }
+
+                    // Check for command prefix if configured (for regular messages to agent)
                     let text = if let Some(ref prefix) = config.bridge.command_prefix {
                         if let Some(stripped) = text.strip_prefix(prefix) {
                             stripped.trim().to_string()
@@ -162,6 +177,17 @@ impl Bridge {
                     if text.is_empty() {
                         return;
                     }
+
+                    // Check if room is bound (required for forwarding to agent)
+                    let binding = {
+                        let bindings_read = bindings.read().await;
+                        bindings_read.get(&room_id).cloned()
+                    };
+
+                    let Some(binding) = binding else {
+                        debug!(room_id = %room_id, "Message from unbound room, ignoring");
+                        return;
+                    };
 
                     info!(
                         room_id = %room_id,
