@@ -24,11 +24,22 @@ use crate::pack_tool::{
     PackTool, PendingPackTools, handle_pack_tool_result, new_pending_pack_tools,
 };
 
-/// Maximum number of registration attempts before giving up
-const MAX_REGISTRATION_ATTEMPTS: usize = 100;
+/// Maximum number of registration attempts before giving up (agent ID suffix)
+const MAX_REGISTRATION_ATTEMPTS: usize = 10;
+
+/// Result of attempting self-registration
+#[derive(Debug)]
+enum SelfRegisterResult {
+    /// Successfully registered or already exists
+    Success,
+    /// No token available (user needs to run coven-link)
+    NoToken(String),
+    /// Registration failed with error
+    Failed(String),
+}
 
 /// Try to self-register the agent using JWT auth from coven-link config
-async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &str) -> Result<bool> {
+async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &str) -> Result<SelfRegisterResult> {
     // Load token from ~/.config/coven/token
     let token_path = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?
@@ -37,14 +48,17 @@ async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &
     let token = match std::fs::read_to_string(&token_path) {
         Ok(t) => t.trim().to_string(),
         Err(_) => {
-            eprintln!("  No coven token found at {}. Run 'coven-link' first.", token_path.display());
-            return Ok(false);
+            return Ok(SelfRegisterResult::NoToken(format!(
+                "No coven token found at {}. Run 'coven-link' first.",
+                token_path.display()
+            )));
         }
     };
 
     if token.is_empty() {
-        eprintln!("  Coven token file is empty. Run 'coven-link' first.");
-        return Ok(false);
+        return Ok(SelfRegisterResult::NoToken(
+            "Coven token file is empty. Run 'coven-link' first.".to_string()
+        ));
     }
 
     eprintln!("  Attempting auto-registration...");
@@ -75,16 +89,15 @@ async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &
         Ok(response) => {
             let resp = response.into_inner();
             eprintln!("  ✓ Agent registered! Principal ID: {}", resp.principal_id);
-            Ok(true)
+            Ok(SelfRegisterResult::Success)
         }
         Err(e) if e.code() == Code::AlreadyExists => {
             // Already registered - this is fine, just means we can proceed
             eprintln!("  Agent fingerprint already registered.");
-            Ok(true)
+            Ok(SelfRegisterResult::Success)
         }
         Err(e) => {
-            eprintln!("  Auto-registration failed: {}", e.message());
-            Ok(false)
+            Ok(SelfRegisterResult::Failed(format!("Auto-registration failed: {}", e.message())))
         }
     }
 }
@@ -281,13 +294,21 @@ pub async fn run(
             Err(e) if e.code() == Code::Unauthenticated && e.message().contains("unknown public key") => {
                 // Try to self-register using coven-link token
                 eprintln!("  Fingerprint not registered. Attempting auto-registration...");
-                if try_self_register(server_addr, &fingerprint, agent_id).await? {
-                    // Set flag to reconnect and restart the loop
-                    eprintln!("  Reconnecting with registered key...");
-                    needs_reconnect = true;
-                    continue;
-                } else {
-                    return Err(e.into());
+                match try_self_register(server_addr, &fingerprint, agent_id).await? {
+                    SelfRegisterResult::Success => {
+                        // Set flag to reconnect and restart the loop
+                        eprintln!("  Reconnecting with registered key...");
+                        needs_reconnect = true;
+                        continue;
+                    }
+                    SelfRegisterResult::NoToken(msg) => {
+                        eprintln!("  {}", msg);
+                        bail!("Agent fingerprint not registered and no link token available. Run 'coven-link' first to link this device, then try again.");
+                    }
+                    SelfRegisterResult::Failed(msg) => {
+                        eprintln!("  {}", msg);
+                        return Err(e.into());
+                    }
                 }
             }
             Err(e) => return Err(e.into()),
