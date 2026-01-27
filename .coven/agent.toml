@@ -1,0 +1,10 @@
+# Agent: aster
+# Created: 2026-01-26
+
+name = "aster"
+server = "http://coven.porpoise-alkaline.ts.net:50051"
+backend = "cli"
+
+# Working directory: uses current directory when agent is launched
+# Uncomment and set to a specific path if needed:
+# working_dir = "/path/to/project"

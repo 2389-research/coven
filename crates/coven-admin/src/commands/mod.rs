@@ -6,6 +6,7 @@ use clap::{Parser, Subcommand};
 pub mod agents;
 pub mod bindings;
 pub mod me;
+pub mod principals;
 pub mod token;
 
 #[derive(Parser)]
@@ -35,6 +36,10 @@ pub enum Command {
     /// Manage bindings
     #[command(subcommand)]
     Bindings(BindingsCommand),
+
+    /// Manage principals (agents, clients)
+    #[command(subcommand)]
+    Principals(PrincipalsCommand),
 
     /// Manage tokens
     #[command(subcommand)]
@@ -88,5 +93,40 @@ pub enum TokenCommand {
         /// Token TTL in seconds (default: 30 days)
         #[arg(long, default_value = "2592000")]
         ttl: i64,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum PrincipalsCommand {
+    /// List all principals
+    List {
+        /// Filter by type (agent, client)
+        #[arg(long, short = 't')]
+        r#type: Option<String>,
+    },
+
+    /// Create a new principal (register an agent or client)
+    Create {
+        /// Principal type: "agent" or "client"
+        #[arg(long, short = 't')]
+        r#type: String,
+
+        /// Display name
+        #[arg(long, short = 'n')]
+        name: String,
+
+        /// Public key fingerprint (SHA256 hex, for agents)
+        #[arg(long)]
+        fingerprint: Option<String>,
+
+        /// Roles to assign (e.g., "member", "owner")
+        #[arg(long, short = 'r')]
+        role: Vec<String>,
+    },
+
+    /// Delete a principal
+    Delete {
+        /// Principal ID to delete
+        id: String,
     },
 }

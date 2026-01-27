@@ -46,6 +46,7 @@ async fn main() -> Result<()> {
         Command::Me => commands::me::run(&gateway, token.as_deref()).await,
         Command::Agents(cmd) => commands::agents::run(&gateway, token.as_deref(), cmd).await,
         Command::Bindings(cmd) => commands::bindings::run(&gateway, token.as_deref(), cmd).await,
+        Command::Principals(cmd) => commands::principals::run(&gateway, token.as_deref(), cmd).await,
         Command::Token(cmd) => commands::token::run(&gateway, token.as_deref(), cmd).await,
     }
 }
