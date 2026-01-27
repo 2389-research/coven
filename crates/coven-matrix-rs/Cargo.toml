@@ -45,3 +45,4 @@ clap = { workspace = true, features = ["derive", "env"] }
 
 # Utilities
 uuid = { workspace = true, features = ["v4"] }
+shellexpand = "3"
