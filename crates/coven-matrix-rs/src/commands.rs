@@ -8,6 +8,7 @@ use matrix_sdk::ruma::OwnedRoomId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::info;
 
 pub enum Command {
     Bind(String),      // /coven bind <agent-id>
@@ -32,11 +33,9 @@ impl Command {
         let parts: Vec<&str> = rest.splitn(2, ' ').collect();
         match parts[0] {
             "bind" => {
-                let agent_id = parts.get(1).map(|s| s.trim().to_string())?;
-                if agent_id.is_empty() {
-                    None
-                } else {
-                    Some(Command::Bind(agent_id))
+                match parts.get(1).map(|s| s.trim().to_string()) {
+                    Some(agent_id) if !agent_id.is_empty() => Some(Command::Bind(agent_id)),
+                    _ => Some(Command::Unknown("bind (requires agent-id, e.g., /coven bind agent-123)".to_string())),
                 }
             }
             "unbind" => Some(Command::Unbind),
@@ -66,6 +65,7 @@ pub async fn execute_command(
                 conversation_key: agent_id.clone(),
             };
             ctx.bindings.write().await.insert(ctx.room_id.clone(), binding);
+            info!(room_id = %ctx.room_id, agent_id = %agent_id, "Room bound to agent via command");
             Ok(format!(
                 "Bound this room to agent: {}\nUse `/coven status` to verify.",
                 agent_id
@@ -73,6 +73,7 @@ pub async fn execute_command(
         }
         Command::Unbind => {
             let removed = ctx.bindings.write().await.remove(ctx.room_id);
+            info!(room_id = %ctx.room_id, "Room unbound via command");
             match removed {
                 Some(binding) => Ok(format!(
                     "Unbound this room from agent: {}",

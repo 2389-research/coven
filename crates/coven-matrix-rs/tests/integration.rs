@@ -21,6 +21,15 @@ fn test_command_parsing() {
         Command::parse("/coven unknown"),
         Some(Command::Unknown(cmd)) if cmd == "unknown"
     ));
+    // /coven bind without agent-id should return Unknown with helpful message
+    assert!(matches!(
+        Command::parse("/coven bind"),
+        Some(Command::Unknown(cmd)) if cmd.contains("requires agent-id")
+    ));
+    assert!(matches!(
+        Command::parse("/coven bind   "),
+        Some(Command::Unknown(cmd)) if cmd.contains("requires agent-id")
+    ));
     assert!(Command::parse("hello world").is_none());
     assert!(Command::parse("/other command").is_none());
 }
@@ -100,4 +109,24 @@ allowed_rooms = []
 
     assert!(config.is_room_allowed("!any:matrix.org"));
     assert!(config.is_room_allowed("!room:other.server"));
+}
+
+#[test]
+fn test_config_rejects_empty_password() {
+    let config_content = r#"
+[matrix]
+homeserver = "https://matrix.org"
+username = "@bot:matrix.org"
+password = ""
+
+[gateway]
+url = "http://localhost:6666"
+"#;
+
+    let mut file = NamedTempFile::new().unwrap();
+    file.write_all(config_content.as_bytes()).unwrap();
+
+    let result = Config::load(Some(file.path().to_path_buf()));
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("password"));
 }
