@@ -5,7 +5,7 @@ use crate::error::{BridgeError, Result};
 use serde::Deserialize;
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub matrix: MatrixConfig,
     pub gateway: GatewayConfig,
@@ -13,7 +13,7 @@ pub struct Config {
     pub bridge: BridgeConfig,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct MatrixConfig {
     pub homeserver: String,
     pub username: String,
@@ -24,14 +24,14 @@ pub struct MatrixConfig {
     pub state_dir: Option<PathBuf>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct GatewayConfig {
     pub url: String,
     #[serde(default)]
     pub token: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct BridgeConfig {
     #[serde(default)]
     pub allowed_rooms: Vec<String>,
