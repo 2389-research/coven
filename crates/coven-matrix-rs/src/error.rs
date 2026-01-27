@@ -11,6 +11,9 @@ pub enum BridgeError {
     #[error("Matrix error: {0}")]
     Matrix(#[from] matrix_sdk::Error),
 
+    #[error("Matrix client build error: {0}")]
+    MatrixBuild(#[from] matrix_sdk::ClientBuildError),
+
     #[error("Gateway error: {0}")]
     Gateway(#[from] tonic::Status),
 
