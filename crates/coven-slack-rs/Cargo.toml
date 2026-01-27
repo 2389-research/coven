@@ -1,0 +1,51 @@
+# ABOUTME: Cargo manifest for coven-slack-rs crate
+# ABOUTME: Slack bridge binary that connects Slack workspaces to coven-gateway via Socket Mode
+
+[package]
+name = "coven-slack-rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Slack bridge for coven-gateway using Socket Mode"
+
+[[bin]]
+name = "coven-slack-bridge"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+coven-proto.workspace = true
+coven-grpc.workspace = true
+
+# Async runtime
+tokio = { workspace = true, features = ["full", "signal"] }
+futures.workspace = true
+
+# gRPC
+tonic.workspace = true
+prost.workspace = true
+
+# Slack - Socket Mode WebSocket client (hyper feature enables Socket Mode via tokio-tungstenite)
+slack-morphism = { version = "2", features = ["hyper"] }
+
+# Config and serialization
+serde = { workspace = true, features = ["derive"] }
+toml.workspace = true
+dirs.workspace = true
+shellexpand = "3"
+
+# Logging and errors
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+anyhow.workspace = true
+thiserror.workspace = true
+
+# CLI
+clap = { workspace = true, features = ["derive", "env"] }
+
+# Utilities
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
