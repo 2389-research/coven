@@ -1,0 +1,45 @@
+# Coven Slack Bridge Configuration
+#
+# This config file connects your Slack workspace to coven-gateway.
+# Environment variables can be used with ${VAR_NAME} syntax.
+
+[slack]
+# App-level token (xapp-...) for Socket Mode WebSocket connection.
+# Create at: https://api.slack.com/apps > Basic Information > App-Level Tokens
+# Required scope: connections:write
+app_token = "${SLACK_APP_TOKEN}"
+
+# Bot token (xoxb-...) for posting messages and API calls.
+# Found at: https://api.slack.com/apps > OAuth & Permissions
+# Required scopes: chat:write, app_mentions:read, channels:history, im:history, groups:history
+bot_token = "${SLACK_BOT_TOKEN}"
+
+[gateway]
+# Coven gateway gRPC URL
+url = "http://localhost:6666"
+
+# Authentication token (from coven-link or gateway admin)
+token = "${COVEN_TOKEN}"
+
+[bridge]
+# Optional: Restrict to specific channels (empty = allow all channels the bot is in)
+# Use channel IDs (C...), not names
+allowed_channels = [
+    # "C0123456789",
+]
+
+# Response trigger mode:
+#   "mention" - only respond when @mentioned, in DMs, or in threads
+#   "all"     - respond to every message in allowed channels
+#
+# Note: The bot always responds in threads and DMs regardless of mode.
+response_mode = "mention"
+
+# Show typing indicator while agent is processing (Slack doesn't support
+# true typing indicators, but the bot can post a "thinking..." message)
+typing_indicator = true
+
+# Post responses in threads (keeps channels cleaner)
+# When enabled, responses to channel messages start a new thread.
+# Responses to messages already in a thread continue that thread.
+thread_replies = true
