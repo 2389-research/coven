@@ -272,11 +272,15 @@ fn handle_backend_event(
                     app.status = AppStatus::Thinking;
                 }
                 OutgoingEvent::Text(text) => {
-                    // Append text to the last agent message
-                    if let Some(msg) = app.messages.last_mut() {
-                        if msg.role == messages::Role::Agent {
-                            msg.content.push_str(&text);
-                        }
+                    // Append text to the last agent message (search backwards since
+                    // System messages may be interleaved during streaming)
+                    if let Some(msg) = app
+                        .messages
+                        .iter_mut()
+                        .rev()
+                        .find(|m| m.role == messages::Role::Agent)
+                    {
+                        msg.content.push_str(&text);
                     }
                 }
                 OutgoingEvent::ToolUse { id, name, input } => {
@@ -291,17 +295,21 @@ fn handle_backend_event(
                         ToolStatus::Executing
                     };
 
-                    // Add tool to the last agent message
-                    if let Some(msg) = app.messages.last_mut() {
-                        if msg.role == messages::Role::Agent {
-                            msg.tools.push(ToolExecution {
-                                id: id.clone(),
-                                name: name.clone(),
-                                input_preview,
-                                status,
-                                output_preview: None,
-                            });
-                        }
+                    // Add tool to the last agent message (search backwards since
+                    // System messages may be interleaved during streaming)
+                    if let Some(msg) = app
+                        .messages
+                        .iter_mut()
+                        .rev()
+                        .find(|m| m.role == messages::Role::Agent)
+                    {
+                        msg.tools.push(ToolExecution {
+                            id: id.clone(),
+                            name: name.clone(),
+                            input_preview,
+                            status,
+                            output_preview: None,
+                        });
                     }
 
                     if needs_approval {
@@ -320,8 +328,14 @@ fn handle_backend_event(
                     output,
                     is_error,
                 } => {
-                    // Update the tool status by matching tool ID
-                    if let Some(msg) = app.messages.last_mut() {
+                    // Update the tool status by matching tool ID (search backwards since
+                    // System messages may be interleaved during streaming)
+                    if let Some(msg) = app
+                        .messages
+                        .iter_mut()
+                        .rev()
+                        .find(|m| m.role == messages::Role::Agent)
+                    {
                         if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == id) {
                             tool.status = if is_error {
                                 ToolStatus::Failed
@@ -333,8 +347,14 @@ fn handle_backend_event(
                     }
                 }
                 OutgoingEvent::Done { full_response: _ } => {
-                    // Mark streaming as complete
-                    if let Some(msg) = app.messages.last_mut() {
+                    // Mark streaming as complete on the last agent message (search backwards
+                    // since System messages may be interleaved during streaming)
+                    if let Some(msg) = app
+                        .messages
+                        .iter_mut()
+                        .rev()
+                        .find(|m| m.role == messages::Role::Agent)
+                    {
                         msg.is_streaming = false;
                     }
                     app.status = AppStatus::Ready;
@@ -351,15 +371,19 @@ fn handle_backend_event(
                     filename,
                     mime_type: _,
                 } => {
-                    // Add file info to the last agent message
-                    if let Some(msg) = app.messages.last_mut() {
-                        if msg.role == messages::Role::Agent {
-                            msg.content.push_str(&format!(
-                                "\n[File: {} -> {}]",
-                                filename,
-                                path.display()
-                            ));
-                        }
+                    // Add file info to the last agent message (search backwards since
+                    // System messages may be interleaved during streaming)
+                    if let Some(msg) = app
+                        .messages
+                        .iter_mut()
+                        .rev()
+                        .find(|m| m.role == messages::Role::Agent)
+                    {
+                        msg.content.push_str(&format!(
+                            "\n[File: {} -> {}]",
+                            filename,
+                            path.display()
+                        ));
                     }
                 }
                 OutgoingEvent::ToolApprovalRequest { id, name, input } => {
@@ -369,11 +393,15 @@ fn handle_backend_event(
                     // Set up the approval flow similar to ToolUse with needs_approval.
                     let input_preview = truncate_string(&input.to_string(), 100);
 
-                    // Add tool to the last agent message if not already present
-                    if let Some(msg) = app.messages.last_mut() {
-                        if msg.role == messages::Role::Agent
-                            && !msg.tools.iter().any(|t| t.id == id)
-                        {
+                    // Add tool to the last agent message if not already present (search
+                    // backwards since System messages may be interleaved during streaming)
+                    if let Some(msg) = app
+                        .messages
+                        .iter_mut()
+                        .rev()
+                        .find(|m| m.role == messages::Role::Agent)
+                    {
+                        if !msg.tools.iter().any(|t| t.id == id) {
                             msg.tools.push(ToolExecution {
                                 id: id.clone(),
                                 name: name.clone(),
@@ -419,8 +447,14 @@ fn handle_backend_event(
                     )));
                 }
                 OutgoingEvent::ToolState { id, state, detail } => {
-                    // Update tool status based on state
-                    if let Some(msg) = app.messages.last_mut() {
+                    // Update tool status based on state (search backwards since
+                    // System messages may be interleaved during streaming)
+                    if let Some(msg) = app
+                        .messages
+                        .iter_mut()
+                        .rev()
+                        .find(|m| m.role == messages::Role::Agent)
+                    {
                         if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == id) {
                             tool.status = match state.as_str() {
                                 "pending" => ToolStatus::Pending,
@@ -439,7 +473,14 @@ fn handle_backend_event(
             }
         }
         BackendMsg::Done => {
-            if let Some(msg) = app.messages.last_mut() {
+            // Mark streaming as complete on the last agent message (search backwards
+            // since System messages may be interleaved during streaming)
+            if let Some(msg) = app
+                .messages
+                .iter_mut()
+                .rev()
+                .find(|m| m.role == messages::Role::Agent)
+            {
                 msg.is_streaming = false;
             }
             app.status = AppStatus::Ready;
