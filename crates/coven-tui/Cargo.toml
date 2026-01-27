@@ -49,6 +49,12 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 rand.workspace = true
 chrono.workspace = true
+anyhow.workspace = true
+hostname.workspace = true
+
+# gRPC (for auto-registration)
+coven-proto.workspace = true
+tonic.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

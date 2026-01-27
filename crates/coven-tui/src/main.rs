@@ -6,6 +6,7 @@ mod app_event;
 mod cli;
 mod client_bridge;
 mod error;
+mod registration;
 mod state;
 mod theme;
 mod tui;

@@ -14,6 +14,7 @@ use tokio_stream::StreamExt;
 use crate::app_event::AppEvent;
 use crate::client_bridge::ClientBridge;
 use crate::error::{AppError, Result};
+use crate::registration::{self, SelfRegisterResult};
 use crate::state::config::Config;
 use crate::state::{AppState, PersistedMessage};
 use crate::theme::{get_theme, Theme};
@@ -121,15 +122,71 @@ impl App {
     }
 
     pub async fn run(&mut self, tui: &mut Tui) -> Result<()> {
-        // Initial fetch of agents
+        // Initial fetch of agents with auto-registration on auth failure
         let client = self.client.clone();
         let tx = self.event_tx.clone();
+        let gateway_url = self.gateway_url.clone();
         tokio::spawn(async move {
             match client.refresh_agents_async().await {
                 Ok(agents) => {
                     let _ = tx.send(AppEvent::AgentsLoaded(agents));
                 }
                 Err(e) => {
+                    let err_msg = e.to_string().to_lowercase();
+                    // Check if this is an authentication/unknown key error
+                    if err_msg.contains("unauthenticated")
+                        || err_msg.contains("unknown")
+                        || err_msg.contains("public key")
+                    {
+                        tracing::info!("Authentication failed, attempting auto-registration...");
+
+                        // Try to auto-register
+                        if let Some(key_path) = default_client_key_path() {
+                            if let Ok(fingerprint) = registration::get_fingerprint_from_key(&key_path)
+                            {
+                                let display_name = format!(
+                                    "coven-tui-{}",
+                                    hostname::get()
+                                        .map(|h| h.to_string_lossy().to_string())
+                                        .unwrap_or_else(|_| "unknown".to_string())
+                                );
+
+                                match registration::try_self_register(
+                                    &gateway_url,
+                                    &fingerprint,
+                                    &display_name,
+                                )
+                                .await
+                                {
+                                    Ok(SelfRegisterResult::Success) => {
+                                        tracing::info!("Auto-registration successful, retrying...");
+                                        // Retry loading agents
+                                        match client.refresh_agents_async().await {
+                                            Ok(agents) => {
+                                                let _ = tx.send(AppEvent::AgentsLoaded(agents));
+                                                return;
+                                            }
+                                            Err(retry_err) => {
+                                                tracing::error!(
+                                                    "Failed to load agents after registration: {}",
+                                                    retry_err
+                                                );
+                                            }
+                                        }
+                                    }
+                                    Ok(SelfRegisterResult::NoToken(msg)) => {
+                                        tracing::warn!("Cannot auto-register: {}", msg);
+                                    }
+                                    Ok(SelfRegisterResult::Failed(msg)) => {
+                                        tracing::error!("Auto-registration failed: {}", msg);
+                                    }
+                                    Err(reg_err) => {
+                                        tracing::error!("Auto-registration error: {}", reg_err);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     tracing::error!("Failed to load agents: {}", e);
                 }
             }

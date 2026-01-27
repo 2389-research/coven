@@ -37,6 +37,7 @@ hex = "0.4"
 # Filesystem helpers
 dirs = "6"
 dotenvy = "0.15"
+hostname = "0.4"
 
 # Testing
 tempfile = "3"

@@ -369,6 +369,9 @@ service ClientService {
 
   // Register an agent (members can self-register agents)
   rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
+
+  // Register a client (members can self-register clients like TUI)
+  rpc RegisterClient(RegisterClientRequest) returns (RegisterClientResponse);
 }
 
 // Request to stream events for a conversation
@@ -449,6 +452,18 @@ message RegisterAgentRequest {
 
 // RegisterAgentResponse returns the created principal info
 message RegisterAgentResponse {
+  string principal_id = 1;
+  string status = 2;              // "approved"
+}
+
+// RegisterClientRequest allows a linked device to register a client (TUI, CLI)
+message RegisterClientRequest {
+  string display_name = 1;        // Name for the client
+  string fingerprint = 2;         // SSH key fingerprint (SHA256 hex, 64 chars)
+}
+
+// RegisterClientResponse returns the created principal info
+message RegisterClientResponse {
   string principal_id = 1;
   string status = 2;              // "approved"
 }
