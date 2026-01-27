@@ -34,9 +34,9 @@ async fn main() -> Result<()> {
         .token
         .or_else(|| std::env::var("COVEN_TOKEN").ok())
         .or_else(|| {
-            // Try reading from token file
-            dirs::config_dir()
-                .map(|d| d.join("coven/token"))
+            // Try reading from token file (~/.config/coven/token)
+            dirs::home_dir()
+                .map(|d| d.join(".config/coven/token"))
                 .and_then(|p| std::fs::read_to_string(p).ok())
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())

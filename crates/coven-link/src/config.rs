@@ -25,10 +25,9 @@ pub struct CovenConfig {
 impl CovenConfig {
     /// Returns the config directory path (~/.config/coven)
     pub fn config_dir() -> Result<PathBuf> {
-        let dir = dirs::config_dir()
-            .context("Could not determine config directory")?
-            .join("coven");
-        Ok(dir)
+        // Use XDG-style path on all platforms for consistency
+        let home = dirs::home_dir().context("Could not determine home directory")?;
+        Ok(home.join(".config").join("coven"))
     }
 
     /// Returns the path to the unified config file
