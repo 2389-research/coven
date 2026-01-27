@@ -144,16 +144,51 @@ impl Config {
     }
 
     fn load_from_file() -> Result<Self> {
+        // Try TUI-specific config first
         let path = Self::config_path()?;
-        if !path.exists() {
-            return Ok(Self::default());
+        if path.exists() {
+            let content = std::fs::read_to_string(&path)
+                .map_err(|e| AppError::Config(format!("Failed to read config: {}", e)))?;
+            return toml::from_str(&content)
+                .map_err(|e| AppError::Config(format!("Failed to parse config: {}", e)));
         }
 
-        let content = std::fs::read_to_string(&path)
-            .map_err(|e| AppError::Config(format!("Failed to read config: {}", e)))?;
+        // Fall back to shared coven config for gateway settings
+        let shared_path = Self::shared_config_path()?;
+        if shared_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&shared_path) {
+                // Parse as raw TOML table to extract gateway URL
+                if let Ok(table) = content.parse::<toml::Table>() {
+                    let mut config = Self::default();
 
-        toml::from_str(&content)
-            .map_err(|e| AppError::Config(format!("Failed to parse config: {}", e)))
+                    // Shared config uses "gateway" key with format "host:port"
+                    if let Some(gateway) = table.get("gateway").and_then(|v| v.as_str()) {
+                        if let Some((host, port, use_tls)) = Self::parse_gateway_url(gateway) {
+                            tracing::debug!(
+                                "Loaded gateway from shared config: {}:{} (tls={})",
+                                host, port, use_tls
+                            );
+                            config.gateway.host = host;
+                            config.gateway.port = port;
+                            config.gateway.use_tls = use_tls;
+                        }
+                    }
+
+                    return Ok(config);
+                }
+            }
+        }
+
+        Ok(Self::default())
+    }
+
+    /// Path to the shared coven config file (~/.config/coven/config.toml)
+    fn shared_config_path() -> Result<PathBuf> {
+        // Use XDG-style config dir (~/.config) regardless of platform
+        // This matches where coven-cli and coven-agent store shared config
+        let home = dirs::home_dir()
+            .ok_or_else(|| AppError::Config("Could not find home directory".to_string()))?;
+        Ok(home.join(".config").join("coven").join("config.toml"))
     }
 
     #[allow(dead_code)]
