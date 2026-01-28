@@ -21,11 +21,16 @@ dirs.workspace = true
 dotenvy.workspace = true
 
 # Internal coven crates
+coven-admin.workspace = true
 coven-agent.workspace = true
 coven-client.workspace = true
+coven-link.workspace = true
+coven-matrix-rs.workspace = true
 coven-pack.workspace = true
+coven-slack-rs.workspace = true
 coven-swarm.workspace = true
 coven-swarm-core.workspace = true
+coven-telegram-rs.workspace = true
 coven-tui.workspace = true
 
 [[bin]]

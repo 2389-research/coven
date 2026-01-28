@@ -192,10 +192,10 @@ pub async fn run(gateway: String, name: Option<String>, key_path: Option<String>
     println!("You can now use:");
     println!(
         "  {} - Connect this device as an agent",
-        "coven-agent".cyan()
+        "coven agent run".cyan()
     );
-    println!("  {} - Terminal UI", "coven-tui".cyan());
-    println!("  {} - Admin commands", "coven-admin".cyan());
+    println!("  {} - Terminal UI", "coven chat".cyan());
+    println!("  {} - Admin commands", "coven admin".cyan());
     println!();
 
     Ok(())

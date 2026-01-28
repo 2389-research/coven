@@ -4,9 +4,6 @@
 use anyhow::Result;
 use clap::Parser;
 
-mod config;
-mod link;
-
 #[derive(Parser)]
 #[command(name = "coven-link", about = "Link this device to a coven-gateway")]
 struct Cli {
@@ -33,5 +30,5 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    link::run(cli.gateway, cli.name, cli.key).await
+    coven_link::run(cli.gateway, cli.name, cli.key).await
 }

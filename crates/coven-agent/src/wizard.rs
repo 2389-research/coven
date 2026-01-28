@@ -83,12 +83,36 @@ struct WizardApp {
 
 impl WizardApp {
     fn new() -> Self {
+        // Try to load coven config (created by `coven link`) for prefilling gateway
+        let coven_config = coven_link::config::CovenConfig::load().ok();
+
+        // Parse gateway address into host and port if available
+        // Gateway format is "host:port" (e.g., "coven.example.com:50051")
+        let (server_host, server_port) = coven_config
+            .as_ref()
+            .map(|c| {
+                // Split "host:port" format
+                if let Some((host, port)) = c.gateway.rsplit_once(':') {
+                    (host.to_string(), port.to_string())
+                } else {
+                    // No port specified, use default
+                    (c.gateway.clone(), "50051".to_string())
+                }
+            })
+            .unwrap_or_else(|| ("127.0.0.1".to_string(), "50051".to_string()));
+
+        // Get device name from config as suggested agent name
+        let name = coven_config
+            .as_ref()
+            .map(|c| c.device_name.clone())
+            .unwrap_or_default();
+
         Self {
             step: WizardStep::Name,
-            name: String::new(),
+            name,
             backend: Backend::Cli,
-            server_host: "127.0.0.1".to_string(),
-            server_port: "50051".to_string(),
+            server_host,
+            server_port,
             server_field_focus: 0,
             error_message: None,
             should_quit: false,
@@ -271,7 +295,12 @@ backend = "{}"
     }
 }
 
-pub async fn run() -> Result<()> {
+/// Run the wizard with the specified command prefix for output messages.
+///
+/// The `command_prefix` is used in the success message to show how to run the agent.
+/// For standalone binary: "coven-agent"
+/// For unified CLI: "coven agent"
+pub async fn run_with_prefix(command_prefix: &str) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -310,11 +339,11 @@ pub async fn run() -> Result<()> {
             if let Some(default_path) = xdg_config_dir().map(|p| p.join("agent.toml")) {
                 println!("✓ Set as default: {}", default_path.display());
                 println!("\nRun your agent with:");
-                println!("  coven-agent");
+                println!("  {} run", command_prefix);
             }
         } else {
             println!("\nRun your agent with:");
-            println!("  coven-agent --config {}", path);
+            println!("  {} run --config {}", command_prefix, path);
         }
     }
 

@@ -33,7 +33,7 @@ pub async fn try_self_register(
         Ok(t) => t.trim().to_string(),
         Err(_) => {
             return Ok(SelfRegisterResult::NoToken(format!(
-                "No coven token found at {}. Run 'coven-link' first.",
+                "No coven token found at {}. Run 'coven link' first.",
                 token_path.display()
             )));
         }
@@ -41,7 +41,7 @@ pub async fn try_self_register(
 
     if token.is_empty() {
         return Ok(SelfRegisterResult::NoToken(
-            "Coven token file is empty. Run 'coven-link' first.".to_string(),
+            "Coven token file is empty. Run 'coven link' first.".to_string(),
         ));
     }
 

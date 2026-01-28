@@ -97,3 +97,7 @@ coven-swarm-backend = { path = "crates/coven-swarm-backend" }
 coven-swarm-core = { path = "crates/coven-swarm-core" }
 coven-tui = { path = "crates/coven-tui" }
 coven-link = { path = "crates/coven-link" }
+coven-admin = { path = "crates/coven-admin" }
+coven-matrix-rs = { path = "crates/coven-matrix-rs" }
+coven-slack-rs = { path = "crates/coven-slack-rs" }
+coven-telegram-rs = { path = "crates/coven-telegram-rs" }

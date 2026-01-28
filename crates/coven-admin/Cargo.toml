@@ -9,6 +9,10 @@ license.workspace = true
 repository.workspace = true
 description = "Admin CLI for coven-gateway"
 
+[lib]
+name = "coven_admin"
+path = "src/lib.rs"
+
 [[bin]]
 name = "coven-admin"
 path = "src/main.rs"

@@ -9,6 +9,10 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+name = "coven_link"
+path = "src/lib.rs"
+
 [[bin]]
 name = "coven-link"
 path = "src/main.rs"

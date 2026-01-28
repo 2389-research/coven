@@ -169,7 +169,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Some(Commands::New) => {
             // Run the interactive wizard (no logging needed for TUI)
-            wizard::run().await
+            wizard::run_with_prefix("coven-agent").await
         }
         None => {
             // Default: run the agent with provided flags
@@ -258,10 +258,25 @@ async fn run_agent(
             config
         };
 
+        // Server can come from:
+        // 1. Agent config file (server = "...")
+        // 2. User's coven config from `coven link` (~/.config/coven/config.toml)
+        // 3. CLI args / defaults
         let server = config
             .get("server")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
+            .or_else(|| {
+                // Try to load gateway from user's coven config
+                coven_link::config::CovenConfig::load().ok().map(|c| {
+                    // Gateway is "host:port" format, convert to URL
+                    if c.gateway.starts_with("http://") || c.gateway.starts_with("https://") {
+                        c.gateway
+                    } else {
+                        format!("http://{}", c.gateway)
+                    }
+                })
+            })
             .unwrap_or(server);
         let name = config
             .get("name")

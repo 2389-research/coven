@@ -1,0 +1,215 @@
+# ABOUTME: Release workflow for building and publishing coven CLI binaries
+# ABOUTME: Triggers on git tags, builds for macOS/Linux, publishes to GitHub Releases and Homebrew
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            cross: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "25.x"
+
+      - name: Install cross (Linux ARM only)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (native)
+        if: "!matrix.cross"
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo build --release --target "$TARGET" -p coven-cli
+
+      - name: Build (cross)
+        if: matrix.cross
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cross build --release --target "$TARGET" -p coven-cli
+
+      - name: Strip binary (macOS)
+        if: contains(matrix.target, 'apple')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: strip "target/$TARGET/release/coven"
+
+      - name: Strip binary (Linux native)
+        if: contains(matrix.target, 'linux') && !matrix.cross
+        env:
+          TARGET: ${{ matrix.target }}
+        run: strip "target/$TARGET/release/coven"
+
+      - name: Strip binary (Linux cross)
+        if: contains(matrix.target, 'linux') && matrix.cross
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            ghcr.io/cross-rs/aarch64-unknown-linux-gnu:main \
+            aarch64-linux-gnu-strip "target/$TARGET/release/coven"
+
+      - name: Create tarball
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cd "target/$TARGET/release"
+          tar czf "../../../coven-${VERSION}-${TARGET}.tar.gz" coven
+          cd ../../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coven-${{ matrix.target }}
+          path: coven-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/**/*.tar.gz
+
+  homebrew:
+    name: Update Homebrew Formula
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Calculate SHA256 sums
+        id: sha256
+        run: |
+          echo "x86_64_apple=$(sha256sum artifacts/coven-x86_64-apple-darwin/*.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "aarch64_apple=$(sha256sum artifacts/coven-aarch64-apple-darwin/*.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "x86_64_linux=$(sha256sum artifacts/coven-x86_64-unknown-linux-gnu/*.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "aarch64_linux=$(sha256sum artifacts/coven-aarch64-unknown-linux-gnu/*.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Extract version
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: 2389-research/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA_X86_APPLE: ${{ steps.sha256.outputs.x86_64_apple }}
+          SHA_ARM_APPLE: ${{ steps.sha256.outputs.aarch64_apple }}
+          SHA_X86_LINUX: ${{ steps.sha256.outputs.x86_64_linux }}
+          SHA_ARM_LINUX: ${{ steps.sha256.outputs.aarch64_linux }}
+        run: |
+          cat > homebrew-tap/Formula/coven.rb << EOF
+          # ABOUTME: Homebrew formula for coven CLI
+          # ABOUTME: Agent platform command-line interface
+
+          class Coven < Formula
+            desc "Agent platform CLI for coven"
+            homepage "https://github.com/2389-research/coven"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_intel do
+                url "https://github.com/2389-research/coven/releases/download/${REF_NAME}/coven-${REF_NAME}-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA_X86_APPLE}"
+              end
+              on_arm do
+                url "https://github.com/2389-research/coven/releases/download/${REF_NAME}/coven-${REF_NAME}-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA_ARM_APPLE}"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "https://github.com/2389-research/coven/releases/download/${REF_NAME}/coven-${REF_NAME}-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_X86_LINUX}"
+              end
+              on_arm do
+                url "https://github.com/2389-research/coven/releases/download/${REF_NAME}/coven-${REF_NAME}-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_ARM_LINUX}"
+              end
+            end
+
+            def install
+              bin.install "coven"
+            end
+
+            test do
+              system "#{bin}/coven", "--version"
+            end
+          end
+          EOF
+
+      - name: Commit and push formula
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/coven.rb
+          git commit -m "Update coven to ${VERSION}"
+          git push

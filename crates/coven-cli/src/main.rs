@@ -1,5 +1,5 @@
 // ABOUTME: Unified CLI entry point for all coven commands.
-// ABOUTME: Dispatches to swarm, agent, chat, pack, and other subcommands.
+// ABOUTME: Dispatches to swarm, agent, chat, pack, admin, link, bridge and other subcommands.
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -23,6 +23,20 @@ enum Commands {
     /// First-time setup wizard
     Init,
 
+    /// Link this device to a coven-gateway
+    Link {
+        /// Gateway URL (e.g., https://coven.example.com or http://localhost:8080)
+        gateway: String,
+
+        /// Device name (defaults to hostname)
+        #[arg(long, short = 'n')]
+        name: Option<String>,
+
+        /// Path to SSH key (defaults to ~/.config/coven/device_key)
+        #[arg(long)]
+        key: Option<String>,
+    },
+
     /// Swarm management commands
     #[command(subcommand)]
     Swarm(SwarmCommands),
@@ -45,6 +59,14 @@ enum Commands {
     /// Pack management commands
     #[command(subcommand)]
     Pack(PackCommands),
+
+    /// Admin commands for gateway management
+    #[command(subcommand)]
+    Admin(AdminCommands),
+
+    /// Bridge commands for external services
+    #[command(subcommand)]
+    Bridge(BridgeCommands),
 
     /// Show version information
     Version,
@@ -129,6 +151,185 @@ enum PackCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum AdminCommands {
+    /// Show your identity (principal info)
+    Me {
+        /// Gateway gRPC address
+        #[arg(long, env = "COVEN_GATEWAY_GRPC")]
+        gateway: Option<String>,
+
+        /// JWT authentication token
+        #[arg(long, env = "COVEN_TOKEN")]
+        token: Option<String>,
+    },
+
+    /// Manage agents
+    Agents {
+        /// Gateway gRPC address
+        #[arg(long, env = "COVEN_GATEWAY_GRPC")]
+        gateway: Option<String>,
+
+        /// JWT authentication token
+        #[arg(long, env = "COVEN_TOKEN")]
+        token: Option<String>,
+
+        #[command(subcommand)]
+        command: AdminAgentsCommand,
+    },
+
+    /// Manage bindings
+    Bindings {
+        /// Gateway gRPC address
+        #[arg(long, env = "COVEN_GATEWAY_GRPC")]
+        gateway: Option<String>,
+
+        /// JWT authentication token
+        #[arg(long, env = "COVEN_TOKEN")]
+        token: Option<String>,
+
+        #[command(subcommand)]
+        command: AdminBindingsCommand,
+    },
+
+    /// Manage principals (agents, clients)
+    Principals {
+        /// Gateway gRPC address
+        #[arg(long, env = "COVEN_GATEWAY_GRPC")]
+        gateway: Option<String>,
+
+        /// JWT authentication token
+        #[arg(long, env = "COVEN_TOKEN")]
+        token: Option<String>,
+
+        #[command(subcommand)]
+        command: AdminPrincipalsCommand,
+    },
+
+    /// Manage tokens
+    Token {
+        /// Gateway gRPC address
+        #[arg(long, env = "COVEN_GATEWAY_GRPC")]
+        gateway: Option<String>,
+
+        /// JWT authentication token
+        #[arg(long, env = "COVEN_TOKEN")]
+        token: Option<String>,
+
+        #[command(subcommand)]
+        command: AdminTokenCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum AdminAgentsCommand {
+    /// List all connected agents
+    List {
+        /// Filter by workspace path
+        #[arg(long)]
+        workspace: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum AdminBindingsCommand {
+    /// List all bindings
+    List,
+
+    /// Create a binding
+    Create {
+        /// Frontend identifier (e.g., "slack", "matrix")
+        #[arg(long)]
+        frontend: String,
+
+        /// Channel ID from the frontend
+        #[arg(long)]
+        channel_id: String,
+
+        /// Agent ID to route messages to
+        #[arg(long)]
+        agent_id: String,
+    },
+
+    /// Delete a binding
+    Delete {
+        /// Binding ID to delete
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum AdminPrincipalsCommand {
+    /// List all principals
+    List {
+        /// Filter by type (agent, client)
+        #[arg(long, short = 't')]
+        r#type: Option<String>,
+    },
+
+    /// Create a new principal
+    Create {
+        /// Principal type: "agent" or "client"
+        #[arg(long, short = 't')]
+        r#type: String,
+
+        /// Display name
+        #[arg(long, short = 'n')]
+        name: String,
+
+        /// Public key fingerprint (SHA256 hex, for agents)
+        #[arg(long)]
+        fingerprint: Option<String>,
+
+        /// Roles to assign (e.g., "member", "owner")
+        #[arg(long, short = 'r')]
+        role: Vec<String>,
+    },
+
+    /// Delete a principal
+    Delete {
+        /// Principal ID to delete
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum AdminTokenCommand {
+    /// Create a new token for a principal
+    Create {
+        /// Principal ID to create token for
+        principal_id: String,
+
+        /// Token TTL in seconds (default: 30 days)
+        #[arg(long, default_value = "2592000")]
+        ttl: i64,
+    },
+}
+
+#[derive(Subcommand)]
+enum BridgeCommands {
+    /// Run Slack bridge
+    Slack {
+        /// Config file path
+        #[arg(short, long, env = "COVEN_SLACK_CONFIG")]
+        config: Option<PathBuf>,
+    },
+
+    /// Run Matrix bridge
+    Matrix {
+        /// Config file path
+        #[arg(short, long, env = "COVEN_MATRIX_CONFIG")]
+        config: Option<PathBuf>,
+    },
+
+    /// Run Telegram bridge
+    Telegram {
+        /// Config file path
+        #[arg(short, long, env = "COVEN_TELEGRAM_CONFIG")]
+        config: Option<PathBuf>,
+    },
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Load .env file if present
@@ -145,21 +346,14 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init => {
-            run_init()
-        }
-        Commands::Swarm(cmd) => {
-            run_swarm(cmd).await
-        }
-        Commands::Agent(cmd) => {
-            run_agent(cmd).await
-        }
-        Commands::Chat { gateway, theme } => {
-            run_chat(gateway, theme).await
-        }
-        Commands::Pack(cmd) => {
-            run_pack(cmd).await
-        }
+        Commands::Init => run_init(),
+        Commands::Link { gateway, name, key } => run_link(gateway, name, key).await,
+        Commands::Swarm(cmd) => run_swarm(cmd).await,
+        Commands::Agent(cmd) => run_agent(cmd).await,
+        Commands::Chat { gateway, theme } => run_chat(gateway, theme).await,
+        Commands::Pack(cmd) => run_pack(cmd).await,
+        Commands::Admin(cmd) => run_admin(cmd).await,
+        Commands::Bridge(cmd) => run_bridge(cmd).await,
         Commands::Version => {
             print_version();
             Ok(())
@@ -170,6 +364,11 @@ async fn main() -> Result<()> {
 /// Run the first-time setup wizard
 fn run_init() -> Result<()> {
     coven_swarm::run_init()
+}
+
+/// Link this device to a gateway
+async fn run_link(gateway: String, name: Option<String>, key: Option<String>) -> Result<()> {
+    coven_link::run(gateway, name, key).await
 }
 
 /// Handle swarm subcommands
@@ -183,7 +382,6 @@ async fn run_swarm(cmd: SwarmCommands) -> Result<()> {
             coven_swarm::run_supervisor(options).await
         }
         SwarmCommands::Stop => {
-            // Load config to get prefix for socket path
             let config = coven_swarm_core::Config::load(
                 &coven_swarm_core::Config::default_path()?,
             )?;
@@ -202,7 +400,6 @@ async fn run_swarm(cmd: SwarmCommands) -> Result<()> {
             }
         }
         SwarmCommands::Status => {
-            // Load config to get prefix for socket path
             let config = coven_swarm_core::Config::load(
                 &coven_swarm_core::Config::default_path()?,
             )?;
@@ -259,9 +456,7 @@ async fn run_agent(cmd: AgentCommands) -> Result<()> {
             };
             coven_agent::run_agent(agent_config).await
         }
-        AgentCommands::New => {
-            coven_agent::run_wizard().await
-        }
+        AgentCommands::New => coven_agent::run_wizard("coven agent").await,
     }
 }
 
@@ -270,6 +465,80 @@ async fn run_chat(gateway: Option<String>, theme: Option<String>) -> Result<()> 
     coven_tui::run_chat(gateway, theme)
         .await
         .map_err(|e| anyhow::anyhow!("{}", e))
+}
+
+/// Handle admin subcommands
+async fn run_admin(cmd: AdminCommands) -> Result<()> {
+    match cmd {
+        AdminCommands::Me { gateway, token } => {
+            coven_admin::run_command(coven_admin::Command::Me, gateway, token).await
+        }
+        AdminCommands::Agents { gateway, token, command } => {
+            let admin_cmd = match command {
+                AdminAgentsCommand::List { workspace } => {
+                    coven_admin::Command::Agents(coven_admin::AgentsCommand::List { workspace })
+                }
+            };
+            coven_admin::run_command(admin_cmd, gateway, token).await
+        }
+        AdminCommands::Bindings { gateway, token, command } => {
+            let admin_cmd = match command {
+                AdminBindingsCommand::List => {
+                    coven_admin::Command::Bindings(coven_admin::BindingsCommand::List)
+                }
+                AdminBindingsCommand::Create { frontend, channel_id, agent_id } => {
+                    coven_admin::Command::Bindings(coven_admin::BindingsCommand::Create {
+                        frontend,
+                        channel_id,
+                        agent_id,
+                    })
+                }
+                AdminBindingsCommand::Delete { id } => {
+                    coven_admin::Command::Bindings(coven_admin::BindingsCommand::Delete { id })
+                }
+            };
+            coven_admin::run_command(admin_cmd, gateway, token).await
+        }
+        AdminCommands::Principals { gateway, token, command } => {
+            let admin_cmd = match command {
+                AdminPrincipalsCommand::List { r#type } => {
+                    coven_admin::Command::Principals(coven_admin::PrincipalsCommand::List { r#type })
+                }
+                AdminPrincipalsCommand::Create { r#type, name, fingerprint, role } => {
+                    coven_admin::Command::Principals(coven_admin::PrincipalsCommand::Create {
+                        r#type,
+                        name,
+                        fingerprint,
+                        role,
+                    })
+                }
+                AdminPrincipalsCommand::Delete { id } => {
+                    coven_admin::Command::Principals(coven_admin::PrincipalsCommand::Delete { id })
+                }
+            };
+            coven_admin::run_command(admin_cmd, gateway, token).await
+        }
+        AdminCommands::Token { gateway, token, command } => {
+            let admin_cmd = match command {
+                AdminTokenCommand::Create { principal_id, ttl } => {
+                    coven_admin::Command::Token(coven_admin::TokenCommand::Create {
+                        principal_id,
+                        ttl,
+                    })
+                }
+            };
+            coven_admin::run_command(admin_cmd, gateway, token).await
+        }
+    }
+}
+
+/// Handle bridge subcommands
+async fn run_bridge(cmd: BridgeCommands) -> Result<()> {
+    match cmd {
+        BridgeCommands::Slack { config } => coven_slack_rs::run(config).await,
+        BridgeCommands::Matrix { config } => coven_matrix_rs::run(config).await,
+        BridgeCommands::Telegram { config } => coven_telegram_rs::run(config).await,
+    }
 }
 
 /// Built-in pack definitions.
@@ -326,14 +595,12 @@ fn list_installed_packs() -> Vec<String> {
 
 /// Find the pack binary path, checking PATH and cargo target directory.
 fn find_pack_binary(pack_name: &str) -> Option<PathBuf> {
-    // First, check if there's a built-in pack with this name
     let binary_name = BUILTIN_PACKS
         .iter()
         .find(|p| p.name == pack_name)
         .map(|p| p.binary)
         .unwrap_or(pack_name);
 
-    // Check if binary exists in PATH (cross-platform)
     if let Ok(path_var) = std::env::var("PATH") {
         #[cfg(windows)]
         let separator = ';';
@@ -345,7 +612,6 @@ fn find_pack_binary(pack_name: &str) -> Option<PathBuf> {
             if candidate.exists() && candidate.is_file() {
                 return Some(candidate);
             }
-            // On Windows, also check with .exe extension
             #[cfg(windows)]
             {
                 let candidate_exe = PathBuf::from(dir).join(format!("{}.exe", binary_name));
@@ -356,7 +622,6 @@ fn find_pack_binary(pack_name: &str) -> Option<PathBuf> {
         }
     }
 
-    // Check cargo target directories (debug and release)
     let cargo_dirs = [
         std::env::current_dir().ok(),
         std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from),
@@ -381,7 +646,6 @@ async fn run_pack(cmd: PackCommands) -> Result<()> {
             println!("coven pack list");
             println!();
 
-            // List built-in packs
             println!("Built-in packs:");
             for pack in BUILTIN_PACKS {
                 let status = if find_pack_binary(pack.name).is_some() {
@@ -393,7 +657,6 @@ async fn run_pack(cmd: PackCommands) -> Result<()> {
             }
             println!();
 
-            // List installed packs (those with config directories)
             let installed = list_installed_packs();
             if !installed.is_empty() {
                 println!("Configured packs (have SSH keys):");
@@ -410,8 +673,6 @@ async fn run_pack(cmd: PackCommands) -> Result<()> {
             println!("coven pack install {}", pack);
             println!();
 
-            // For now, packs are Rust binaries that need to be compiled
-            // Future: support downloading pre-built binaries or building from source
             println!("Pack installation is not yet implemented.");
             println!();
             println!("To use built-in packs, build them with:");
@@ -423,7 +684,6 @@ async fn run_pack(cmd: PackCommands) -> Result<()> {
             Ok(())
         }
         PackCommands::Run { pack } => {
-            // Find the pack binary
             let binary_path = find_pack_binary(&pack)
                 .with_context(|| format!("Pack '{}' not found. Try building it first with: cargo build -p {}-pack", pack, pack))?;
 
@@ -431,7 +691,6 @@ async fn run_pack(cmd: PackCommands) -> Result<()> {
             println!("Binary: {}", binary_path.display());
             println!();
 
-            // Execute the pack binary, inheriting stdio
             let status = Command::new(&binary_path)
                 .stdin(std::process::Stdio::inherit())
                 .stdout(std::process::Stdio::inherit())
@@ -468,7 +727,6 @@ mod tests {
 
     #[test]
     fn verify_cli_structure() {
-        // Ensure CLI structure is valid
         Cli::command().debug_assert();
     }
 }

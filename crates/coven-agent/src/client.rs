@@ -82,7 +82,7 @@ async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &
         Ok(t) => t.trim().to_string(),
         Err(_) => {
             return Ok(SelfRegisterResult::NoToken(format!(
-                "No coven token found at {}. Run 'coven-link' first.",
+                "No coven token found at {}. Run 'coven link' first.",
                 token_path.display()
             )));
         }
@@ -90,7 +90,7 @@ async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &
 
     if token.is_empty() {
         return Ok(SelfRegisterResult::NoToken(
-            "Coven token file is empty. Run 'coven-link' first.".to_string()
+            "Coven token file is empty. Run 'coven link' first.".to_string()
         ));
     }
 
@@ -272,7 +272,7 @@ pub async fn run(
     let private_key = load_or_generate_key(&key_path)?;
     let fingerprint = compute_fingerprint(private_key.public_key())?;
     eprintln!("  Fingerprint: {}", fingerprint);
-    eprintln!("  (Register this fingerprint with the gateway using coven-admin)");
+    eprintln!("  (Register this fingerprint with the gateway using 'coven admin')");
 
     let private_key = Arc::new(private_key);
 
@@ -336,7 +336,7 @@ pub async fn run(
                     }
                     SelfRegisterResult::NoToken(msg) => {
                         eprintln!("  {}", msg);
-                        bail!("Agent fingerprint not registered and no link token available. Run 'coven-link' first to link this device, then try again.");
+                        bail!("Agent fingerprint not registered and no link token available. Run 'coven link' first to link this device, then try again.");
                     }
                     SelfRegisterResult::Failed(msg) => {
                         eprintln!("  {}", msg);
