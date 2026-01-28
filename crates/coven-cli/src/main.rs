@@ -93,6 +93,22 @@ enum SwarmCommands {
 
     /// Show status of running agents
     Status,
+
+    /// Run a single workspace agent (internal, spawned by supervisor)
+    #[command(hide = true)]
+    Agent {
+        /// Workspace name
+        #[arg(long)]
+        workspace: String,
+
+        /// Run in dispatch mode (swarm management tools)
+        #[arg(long)]
+        dispatch_mode: bool,
+
+        /// Path to configuration file
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -433,6 +449,18 @@ async fn run_swarm(cmd: SwarmCommands) -> Result<()> {
                     Err(e)
                 }
             }
+        }
+        SwarmCommands::Agent {
+            workspace,
+            dispatch_mode,
+            config,
+        } => {
+            let options = coven_swarm::AgentOptions {
+                workspace,
+                dispatch_mode,
+                config_path: config,
+            };
+            coven_swarm::run_agent(options).await
         }
     }
 }

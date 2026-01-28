@@ -16,7 +16,8 @@ pub use supervisor::{
 use anyhow::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tokio::sync::mpsc;
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
 
 /// Options for running the supervisor
 pub struct SupervisorOptions {
@@ -24,6 +25,16 @@ pub struct SupervisorOptions {
     pub config_path: Option<PathBuf>,
     /// Run in headless mode (no TUI)
     pub headless: bool,
+}
+
+/// Options for running a swarm agent (internal, spawned by supervisor)
+pub struct AgentOptions {
+    /// Workspace name
+    pub workspace: String,
+    /// Run in dispatch mode (swarm management tools)
+    pub dispatch_mode: bool,
+    /// Path to configuration file
+    pub config_path: Option<PathBuf>,
 }
 
 /// Run the supervisor daemon
@@ -233,6 +244,138 @@ pub async fn run_supervisor(options: SupervisorOptions) -> Result<()> {
             }
         }
     }
+
+    Ok(())
+}
+
+/// Run a swarm agent (internal, spawned by supervisor)
+pub async fn run_agent(options: AgentOptions) -> Result<()> {
+    use coven_core::backend::{MuxBackend, MuxConfig};
+    use coven_swarm_backend::dispatch_tools::{
+        CreateWorkspaceTool, DeleteWorkspaceTool, ListAgentsTool,
+    };
+    use coven_swarm_backend::BackendHandle;
+
+    // Load or generate SSH key
+    let key_path = coven_ssh::default_swarm_key_path()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine SSH key path"))?;
+    let private_key = coven_ssh::load_or_generate_key(&key_path)?;
+    let fingerprint = coven_ssh::compute_fingerprint(private_key.public_key())?;
+    tracing::info!(fingerprint = %fingerprint, "SSH key loaded");
+
+    // Load config
+    let config_path = options.config_path.unwrap_or_else(|| {
+        Config::default_path().expect("Failed to get default config path")
+    });
+    let config = Config::load(&config_path)?;
+
+    let working_dir = config.working_directory_expanded().join(&options.workspace);
+
+    // Validate working directory exists
+    if !working_dir.exists() {
+        anyhow::bail!(
+            "Workspace directory does not exist: {}",
+            working_dir.display()
+        );
+    }
+
+    // Create backend based on mode
+    let (handle, backend_name) = if options.dispatch_mode {
+        // Dispatch mode uses coven-core's MuxBackend with dispatch tools
+        let mux_config = MuxConfig {
+            model: "claude-sonnet-4-20250514".to_string(),
+            max_tokens: 8192,
+            working_dir: working_dir.clone(),
+            global_system_prompt_path: None,
+            local_prompt_files: vec!["claude.md".to_string(), "CLAUDE.md".to_string()],
+            skip_default_tools: false,
+            ..MuxConfig::default()
+        };
+        let backend = MuxBackend::new(mux_config).await?;
+
+        // Register dispatch tools
+        backend
+            .register_tool(ListAgentsTool::new(config.prefix.clone()))
+            .await;
+        backend
+            .register_tool(CreateWorkspaceTool::new(config.prefix.clone()))
+            .await;
+        backend
+            .register_tool(DeleteWorkspaceTool::new(config.prefix.clone()))
+            .await;
+        tracing::info!("Registered dispatch tools: list_agents, create_workspace, delete_workspace");
+
+        let handle = BackendHandle::new(backend);
+        let name = handle.name();
+        (handle, name)
+    } else {
+        // Normal workspace uses ACP backend
+        #[cfg(feature = "acp")]
+        {
+            use coven_swarm_backend::acp::{AcpBackend, AcpConfig};
+            let acp_config = AcpConfig {
+                binary: config.acp_binary.clone(),
+                timeout_secs: 300,
+                working_dir: working_dir.clone(),
+                extra_args: vec![],
+            };
+            let backend = AcpBackend::new(acp_config);
+            let handle = BackendHandle::new(backend);
+            let name = handle.name();
+            (handle, name)
+        }
+        #[cfg(not(feature = "acp"))]
+        {
+            // Fallback to coven-core's MuxBackend when ACP is not available
+            let mux_config = MuxConfig {
+                model: "claude-sonnet-4-20250514".to_string(),
+                max_tokens: 8192,
+                working_dir: working_dir.clone(),
+                global_system_prompt_path: None,
+                local_prompt_files: vec!["claude.md".to_string(), "CLAUDE.md".to_string()],
+                skip_default_tools: false,
+                ..MuxConfig::default()
+            };
+            let backend = MuxBackend::new(mux_config).await?;
+            let handle = BackendHandle::new(backend);
+            let name = handle.name();
+            (handle, name)
+        }
+    };
+
+    let session = Arc::new(Mutex::new(Session::new(handle)));
+
+    let gateway_url = config.gateway_url()?;
+
+    tracing::info!(
+        workspace = %options.workspace,
+        working_dir = %working_dir.display(),
+        gateway = %gateway_url,
+        backend = %backend_name,
+        dispatch_mode = %options.dispatch_mode,
+        "Starting agent"
+    );
+
+    // Connect to gateway
+    let client = GatewayClient::connect(
+        &gateway_url,
+        &config.prefix,
+        &options.workspace,
+        &working_dir.to_string_lossy(),
+        backend_name,
+    )
+    .await?;
+
+    // Run the agent with real-time response streaming
+    client
+        .run(|msg, tx| {
+            let session = Arc::clone(&session);
+            async move {
+                let mut session = session.lock().await;
+                session.handle_message(msg, tx).await
+            }
+        })
+        .await?;
 
     Ok(())
 }

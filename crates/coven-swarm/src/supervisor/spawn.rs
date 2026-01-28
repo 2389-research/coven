@@ -37,7 +37,8 @@ impl AgentProcess {
         let exe = std::env::current_exe()?;
 
         let mut cmd = Command::new(exe);
-        cmd.arg("agent")
+        cmd.arg("swarm")
+            .arg("agent")
             .arg("--workspace")
             .arg(&self.workspace)
             .arg("--config")
