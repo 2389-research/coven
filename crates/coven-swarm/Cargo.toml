@@ -20,6 +20,7 @@ acp = ["coven-swarm-backend/acp"]
 coven-swarm-core.workspace = true
 coven-swarm-backend.workspace = true
 coven-core.workspace = true
+coven-link.workspace = true
 
 # Shared coven crates
 coven-ssh.workspace = true

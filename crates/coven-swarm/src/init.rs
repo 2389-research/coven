@@ -49,12 +49,31 @@ fn prompt_choice(message: &str, choices: &[&str], default: usize) -> Result<usiz
 pub fn run_init() -> Result<()> {
     println!("coven-swarm initialization\n");
 
-    let gateway_host = prompt("Gateway host", "localhost")?;
-    let gateway_port = prompt("Gateway port", "50051")?;
-    let gateway_url = format!("grpc://{}:{}", gateway_host, gateway_port);
+    // Try to load existing coven link config for defaults
+    let coven_config = coven_link::config::CovenConfig::load().ok();
 
-    let hostname = hostname::get()?.to_string_lossy().to_string();
-    let prefix = prompt("Agent prefix", &hostname)?;
+    // Parse gateway from coven link config if available
+    let (default_host, default_port) = coven_config
+        .as_ref()
+        .map(|c| {
+            if let Some((host, port)) = c.gateway.rsplit_once(':') {
+                (host.to_string(), port.to_string())
+            } else {
+                (c.gateway.clone(), "50051".to_string())
+            }
+        })
+        .unwrap_or_else(|| ("localhost".to_string(), "50051".to_string()));
+
+    let gateway_host = prompt("Gateway host", &default_host)?;
+    let gateway_port = prompt("Gateway port", &default_port)?;
+    let gateway_url = format!("http://{}:{}", gateway_host, gateway_port);
+
+    // Use device name from coven link or hostname as default prefix
+    let default_prefix = coven_config
+        .as_ref()
+        .map(|c| c.device_name.clone())
+        .unwrap_or_else(|| hostname::get().map(|h| h.to_string_lossy().to_string()).unwrap_or_else(|_| "swarm".to_string()));
+    let prefix = prompt("Agent prefix", &default_prefix)?;
 
     let default_workdir = dirs::home_dir()
         .map(|h| h.join("workspaces").display().to_string())
@@ -70,7 +89,7 @@ pub fn run_init() -> Result<()> {
     };
 
     let config = Config {
-        gateway_url,
+        gateway_url: Some(gateway_url),
         prefix: prefix.clone(),
         working_directory: working_directory.clone(),
         default_backend,
@@ -88,7 +107,7 @@ pub fn run_init() -> Result<()> {
     std::fs::create_dir_all(&dispatch_dir)?;
     println!("Created dispatch workspace at {}", dispatch_dir.display());
 
-    println!("\nReady to run: coven-swarm supervisor");
+    println!("\nReady to run: coven swarm start");
 
     Ok(())
 }

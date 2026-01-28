@@ -1235,6 +1235,7 @@ dependencies = [
  "anyhow",
  "clap",
  "coven-core",
+ "coven-link",
  "coven-proto",
  "coven-ssh",
  "coven-swarm-backend",
@@ -1286,7 +1287,8 @@ name = "coven-swarm-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "directories",
+ "coven-link",
+ "dirs",
  "serde",
  "serde_json",
  "shellexpand",
@@ -1740,15 +1742,6 @@ dependencies = [
  "const-oid",
  "crypto-common",
  "subtle",
-]
-
-[[package]]
-name = "directories"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16f5094c54661b38d03bd7e50df373292118db60b585c08a411c6d840017fe7d"
-dependencies = [
- "dirs-sys",
 ]
 
 [[package]]

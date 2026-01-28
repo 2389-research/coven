@@ -356,10 +356,12 @@ async fn main() -> anyhow::Result<()> {
 
             let session = Arc::new(Mutex::new(Session::new(handle)));
 
+            let gateway_url = config.gateway_url()?;
+
             tracing::info!(
                 workspace = %workspace,
                 working_dir = %working_dir.display(),
-                gateway = %config.gateway_url,
+                gateway = %gateway_url,
                 backend = %backend_name,
                 dispatch_mode = %dispatch_mode,
                 "Starting agent"
@@ -367,7 +369,7 @@ async fn main() -> anyhow::Result<()> {
 
             // Connect to gateway
             let client = GatewayClient::connect(
-                &config.gateway_url,
+                &gateway_url,
                 &config.prefix,
                 &workspace,
                 &working_dir.to_string_lossy(),
