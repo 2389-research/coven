@@ -87,16 +87,23 @@ impl WizardApp {
         let coven_config = coven_link::config::CovenConfig::load().ok();
 
         // Parse gateway address into host and port if available
-        // Gateway format is "host:port" (e.g., "coven.example.com:50051")
+        // Gateway format is "http://host:port" or "host:port" (e.g., "http://coven.example.com:50051")
         let (server_host, server_port) = coven_config
             .as_ref()
             .map(|c| {
+                // Strip http:// or https:// prefix before parsing
+                let gateway = c
+                    .gateway
+                    .strip_prefix("http://")
+                    .or_else(|| c.gateway.strip_prefix("https://"))
+                    .unwrap_or(&c.gateway);
+
                 // Split "host:port" format
-                if let Some((host, port)) = c.gateway.rsplit_once(':') {
+                if let Some((host, port)) = gateway.rsplit_once(':') {
                     (host.to_string(), port.to_string())
                 } else {
                     // No port specified, use default
-                    (c.gateway.clone(), "50051".to_string())
+                    (gateway.to_string(), "50051".to_string())
                 }
             })
             .unwrap_or_else(|| ("127.0.0.1".to_string(), "50051".to_string()));
