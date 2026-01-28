@@ -53,20 +53,31 @@ pub fn run_init() -> Result<()> {
     let coven_config = coven_link::config::CovenConfig::load().ok();
 
     // Parse gateway from coven link config if available
+    // Strip http:// or https:// prefix before parsing host:port
     let (default_host, default_port) = coven_config
         .as_ref()
         .map(|c| {
-            if let Some((host, port)) = c.gateway.rsplit_once(':') {
+            let gateway = c.gateway
+                .strip_prefix("http://")
+                .or_else(|| c.gateway.strip_prefix("https://"))
+                .unwrap_or(&c.gateway);
+            if let Some((host, port)) = gateway.rsplit_once(':') {
                 (host.to_string(), port.to_string())
             } else {
-                (c.gateway.clone(), "50051".to_string())
+                (gateway.to_string(), "50051".to_string())
             }
         })
         .unwrap_or_else(|| ("localhost".to_string(), "50051".to_string()));
 
     let gateway_host = prompt("Gateway host", &default_host)?;
     let gateway_port = prompt("Gateway port", &default_port)?;
-    let gateway_url = format!("http://{}:{}", gateway_host, gateway_port);
+
+    // Build URL, avoiding double http:// if user entered it
+    let gateway_host_clean = gateway_host
+        .strip_prefix("http://")
+        .or_else(|| gateway_host.strip_prefix("https://"))
+        .unwrap_or(&gateway_host);
+    let gateway_url = format!("http://{}:{}", gateway_host_clean, gateway_port);
 
     // Use device name from coven link or hostname as default prefix
     let default_prefix = coven_config
