@@ -91,12 +91,12 @@ pub fn run_init() -> Result<()> {
         .unwrap_or_else(|| "~/workspaces".to_string());
     let working_directory = prompt("Working directory", &default_workdir)?;
 
-    let backend_choices = ["acp", "mux", "direct"];
+    let backend_choices = ["claude code direct", "acp", "mux"];
     let backend_idx = prompt_choice("Default backend", &backend_choices, 0)?;
     let default_backend = match backend_idx {
-        0 => BackendType::Acp,
-        1 => BackendType::Mux,
-        _ => BackendType::Direct,
+        0 => BackendType::Direct,
+        1 => BackendType::Acp,
+        _ => BackendType::Mux,
     };
 
     let config = Config {
