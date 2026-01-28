@@ -4,6 +4,7 @@
 use anyhow::{Context, Result};
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tonic::service::Interceptor;
 use tonic::transport::Channel;
 
 // Use shared proto types from coven-proto
@@ -11,6 +12,40 @@ pub use coven_proto::coven;
 
 use coven_proto::client::CovenControlClient;
 use coven_proto::{AgentMessage, AgentMetadata, RegisterAgent};
+
+/// Load auth token from ~/.config/coven/token
+fn load_token() -> Result<String> {
+    let token_path = dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?
+        .join(".config/coven/token");
+
+    let token = std::fs::read_to_string(&token_path)
+        .with_context(|| format!("No coven token found at {}. Run 'coven link' first.", token_path.display()))?
+        .trim()
+        .to_string();
+
+    if token.is_empty() {
+        anyhow::bail!("Coven token file is empty. Run 'coven link' first.");
+    }
+
+    Ok(token)
+}
+
+/// Auth interceptor that adds Bearer token to requests
+#[derive(Clone)]
+struct AuthInterceptor {
+    token: String,
+}
+
+impl Interceptor for AuthInterceptor {
+    fn call(&mut self, mut req: tonic::Request<()>) -> std::result::Result<tonic::Request<()>, tonic::Status> {
+        let auth_value = format!("Bearer {}", self.token)
+            .parse()
+            .map_err(|_| tonic::Status::internal("invalid token format"))?;
+        req.metadata_mut().insert("authorization", auth_value);
+        Ok(req)
+    }
+}
 
 /// Sender for streaming responses back to the gateway in real-time.
 /// Clone this and use it to send responses as they arrive from the backend.
@@ -21,7 +56,7 @@ pub fn format_agent_id(prefix: &str, workspace: &str) -> String {
 }
 
 pub struct GatewayClient {
-    client: CovenControlClient<Channel>,
+    client: CovenControlClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>,
     agent_id: String,
     workspace: String,
     working_dir: String,
@@ -36,6 +71,9 @@ impl GatewayClient {
         working_dir: &str,
         backend: &str,
     ) -> Result<Self> {
+        // Load auth token
+        let token = load_token()?;
+
         let channel = Channel::from_shared(gateway_url.to_string())?
             .http2_keep_alive_interval(Duration::from_secs(10))
             .keep_alive_timeout(Duration::from_secs(20))
@@ -44,7 +82,8 @@ impl GatewayClient {
             .await
             .context("Failed to connect to coven-gateway")?;
 
-        let client = CovenControlClient::new(channel);
+        let interceptor = AuthInterceptor { token };
+        let client = CovenControlClient::with_interceptor(channel, interceptor);
         let agent_id = format_agent_id(prefix, workspace);
 
         Ok(Self {
