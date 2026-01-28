@@ -158,8 +158,8 @@ impl Backend for DirectCliBackend {
 }
 
 /// Spawn the Claude CLI process with appropriate arguments.
-/// When an MCP endpoint is provided, passes --mcp-config to connect the CLI
-/// to the gateway's Streamable HTTP MCP server for pack tools.
+/// When an MCP endpoint is provided, writes a .mcp.json file to the working directory
+/// so Claude CLI discovers pack tools via HTTP MCP transport.
 async fn spawn_cli_process(
     config: &DirectCliConfig,
     session_id: &str,
@@ -175,7 +175,10 @@ async fn spawn_cli_process(
         "--dangerously-skip-permissions".to_string(),
     ];
 
-    // Pass MCP config inline so Claude CLI discovers pack tools via Streamable HTTP
+    // Write MCP config to .mcp.json file in the working directory
+    // Claude CLI automatically picks up .mcp.json files for project-level MCP servers.
+    // We use file-based config instead of --mcp-config flag because the flag has
+    // a bug where HTTP transport hangs during initialization.
     if let Some(endpoint) = mcp_endpoint {
         let mcp_config = serde_json::json!({
             "mcpServers": {
@@ -185,8 +188,12 @@ async fn spawn_cli_process(
                 }
             }
         });
-        args.push("--mcp-config".to_string());
-        args.push(mcp_config.to_string());
+        let mcp_file_path = config.working_dir.join(".mcp.json");
+        if let Err(e) = std::fs::write(&mcp_file_path, mcp_config.to_string()) {
+            tracing::warn!(path = %mcp_file_path.display(), error = %e, "Failed to write .mcp.json file");
+        } else {
+            tracing::debug!(path = %mcp_file_path.display(), "Wrote MCP config to .mcp.json");
+        }
     }
 
     // Only use --resume for existing sessions, not new ones
@@ -197,19 +204,7 @@ async fn spawn_cli_process(
 
     args.push(text.to_string());
 
-    // Redact --mcp-config values to avoid logging credentials (tokens in MCP URLs)
-    let redacted_args: Vec<String> = args
-        .iter()
-        .enumerate()
-        .map(|(i, arg)| {
-            if i > 0 && args[i - 1] == "--mcp-config" {
-                "[REDACTED]".to_string()
-            } else {
-                arg.clone()
-            }
-        })
-        .collect();
-    tracing::debug!(args = ?redacted_args, cwd = %config.working_dir.display(), "Spawning Claude CLI");
+    tracing::debug!(args = ?args, cwd = %config.working_dir.display(), "Spawning Claude CLI");
 
     let child = ProcessCommand::new(&config.binary)
         .args(&args)
