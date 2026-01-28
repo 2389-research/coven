@@ -36,9 +36,21 @@ impl AgentProcess {
     pub async fn spawn_with_tui(&mut self, tui_tx: Option<mpsc::Sender<TuiEvent>>) -> Result<()> {
         let exe = std::env::current_exe()?;
 
-        let mut cmd = Command::new(exe);
-        cmd.arg("swarm")
-            .arg("agent")
+        // Detect if we're running as unified `coven` CLI or standalone `coven-swarm`
+        let is_unified_cli = exe
+            .file_name()
+            .map(|n| n.to_string_lossy())
+            .map(|n| n == "coven" || n.starts_with("coven."))
+            .unwrap_or(false);
+
+        let mut cmd = Command::new(&exe);
+
+        // For unified CLI: `coven swarm agent --workspace ...`
+        // For standalone:  `coven-swarm agent --workspace ...`
+        if is_unified_cli {
+            cmd.arg("swarm");
+        }
+        cmd.arg("agent")
             .arg("--workspace")
             .arg(&self.workspace)
             .arg("--config")
