@@ -74,6 +74,9 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum SwarmCommands {
+    /// Initialize swarm configuration
+    Init,
+
     /// Start the supervisor daemon
     Start {
         /// Path to configuration file
@@ -374,6 +377,9 @@ async fn run_link(gateway: String, name: Option<String>, key: Option<String>) ->
 /// Handle swarm subcommands
 async fn run_swarm(cmd: SwarmCommands) -> Result<()> {
     match cmd {
+        SwarmCommands::Init => {
+            coven_swarm::run_init()
+        }
         SwarmCommands::Start { config, headless } => {
             let options = coven_swarm::SupervisorOptions {
                 config_path: config,
