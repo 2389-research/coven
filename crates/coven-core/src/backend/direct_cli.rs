@@ -158,8 +158,10 @@ impl Backend for DirectCliBackend {
 }
 
 /// Spawn the Claude CLI process with appropriate arguments.
-/// When an MCP endpoint is provided, writes a .mcp.json file to the working directory
-/// so Claude CLI discovers pack tools via HTTP MCP transport.
+///
+/// Uses default MCP discovery (plugins from ~/.claude). Testing shows that
+/// --strict-mcp-config with empty config causes hangs in some environments,
+/// while normal MCP discovery works fine with piped stdout.
 async fn spawn_cli_process(
     config: &DirectCliConfig,
     session_id: &str,
@@ -167,34 +169,23 @@ async fn spawn_cli_process(
     is_new_session: bool,
     mcp_endpoint: Option<&str>,
 ) -> Result<Child> {
+    // Log MCP endpoint if provided (for future use when we can configure it)
+    if let Some(endpoint) = mcp_endpoint {
+        tracing::debug!(
+            endpoint = %endpoint,
+            "MCP endpoint available (using default MCP discovery)"
+        );
+    }
+
     let mut args = vec![
         "--print".to_string(),
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
         "--dangerously-skip-permissions".to_string(),
+        // Use default MCP discovery - plugins from ~/.claude work fine
+        // Do NOT use --strict-mcp-config as it causes hangs in some environments
     ];
-
-    // Write MCP config to .mcp.json file in the working directory
-    // Claude CLI automatically picks up .mcp.json files for project-level MCP servers.
-    // We use file-based config instead of --mcp-config flag because the flag has
-    // a bug where HTTP transport hangs during initialization.
-    if let Some(endpoint) = mcp_endpoint {
-        let mcp_config = serde_json::json!({
-            "mcpServers": {
-                "coven-gateway": {
-                    "type": "http",
-                    "url": endpoint
-                }
-            }
-        });
-        let mcp_file_path = config.working_dir.join(".mcp.json");
-        if let Err(e) = std::fs::write(&mcp_file_path, mcp_config.to_string()) {
-            tracing::warn!(path = %mcp_file_path.display(), error = %e, "Failed to write .mcp.json file");
-        } else {
-            tracing::debug!(path = %mcp_file_path.display(), "Wrote MCP config to .mcp.json");
-        }
-    }
 
     // Only use --resume for existing sessions, not new ones
     if !is_new_session {
@@ -209,6 +200,9 @@ async fn spawn_cli_process(
     let child = ProcessCommand::new(&config.binary)
         .args(&args)
         .current_dir(&config.working_dir)
+        // Close stdin - Claude CLI in --print mode waits for stdin when it's piped.
+        // Without this, it hangs waiting for input that never comes.
+        .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
