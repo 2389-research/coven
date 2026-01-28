@@ -1,0 +1,37 @@
+# Coven Telegram Bridge Configuration
+#
+# This config file connects your Telegram bot to coven-gateway.
+# Environment variables can be used with ${VAR_NAME} syntax.
+
+[telegram]
+# Bot token from @BotFather
+# Create a new bot: https://t.me/botfather -> /newbot
+# Format: BOT_ID:TOKEN_STRING (e.g., "123456789:ABC-DEFghijkl-mnop")
+bot_token = "${TELEGRAM_BOT_TOKEN}"
+
+[gateway]
+# Coven gateway gRPC URL
+url = "http://localhost:6666"
+
+# Authentication token (from coven-link or gateway admin)
+token = "${COVEN_TOKEN}"
+
+[bridge]
+# Optional: Restrict to specific chat IDs (empty = allow all chats the bot is in)
+# Private chats have positive IDs, groups/supergroups have negative IDs
+# Use /coven status in a chat to find its ID
+allowed_chats = [
+    # 123456789,      # Private chat with user
+    # -1001234567890, # Supergroup
+]
+
+# Response trigger mode:
+#   "mention" - only respond when @mentioned, in private chats, or in reply threads
+#   "all"     - respond to every message in allowed chats
+#
+# Note: The bot always responds in private chats and reply threads regardless of mode.
+response_mode = "mention"
+
+# Reply to messages using Telegram's reply-to feature (creates visual threads)
+# When enabled, responses to messages will be threaded.
+thread_replies = true

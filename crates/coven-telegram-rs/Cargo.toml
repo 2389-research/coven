@@ -1,0 +1,51 @@
+# ABOUTME: Cargo manifest for coven-telegram-rs crate
+# ABOUTME: Telegram bridge binary that connects Telegram chats to coven-gateway via Long Polling
+
+[package]
+name = "coven-telegram-rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Telegram bridge for coven-gateway using Long Polling"
+
+[[bin]]
+name = "coven-telegram-bridge"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+coven-proto.workspace = true
+coven-grpc.workspace = true
+
+# Async runtime
+tokio = { workspace = true, features = ["full", "signal"] }
+futures.workspace = true
+
+# gRPC
+tonic.workspace = true
+prost.workspace = true
+
+# Telegram - Long Polling client with macros for handlers
+teloxide = { version = "0.13", features = ["macros"] }
+
+# Config and serialization
+serde = { workspace = true, features = ["derive"] }
+toml.workspace = true
+dirs.workspace = true
+shellexpand = "3"
+
+# Logging and errors
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+anyhow.workspace = true
+thiserror.workspace = true
+
+# CLI
+clap = { workspace = true, features = ["derive", "env"] }
+
+# Utilities
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
