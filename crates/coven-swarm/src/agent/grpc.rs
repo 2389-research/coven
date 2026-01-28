@@ -52,7 +52,9 @@ impl Interceptor for AuthInterceptor {
 pub type ResponseSender = mpsc::Sender<coven::MessageResponse>;
 
 pub fn format_agent_id(prefix: &str, workspace: &str) -> String {
-    format!("{}_{}", prefix, workspace)
+    // Add a short random suffix to avoid conflicts with stale registrations
+    let suffix: u16 = rand::random();
+    format!("{}_{}_{:04x}", prefix, workspace, suffix)
 }
 
 pub struct GatewayClient {
