@@ -79,7 +79,7 @@ pub async fn run(gateway: String, name: Option<String>, key_path: Option<String>
         .build()
         .context("Failed to create HTTP client")?;
     let resp = client
-        .post(format!("{}/admin/api/link/request", gateway_http))
+        .post(format!("{}/api/link/request", gateway_http))
         .json(&serde_json::json!({
             "fingerprint": fingerprint,
             "device_name": device_name,
@@ -127,7 +127,7 @@ pub async fn run(gateway: String, name: Option<String>, key_path: Option<String>
 
         let resp = client
             .get(format!(
-                "{}/admin/api/link/status/{}",
+                "{}/api/link/status/{}",
                 gateway_http, link_resp.code
             ))
             .send()
