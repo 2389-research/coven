@@ -14,7 +14,7 @@ name = "coven_tui"
 path = "src/lib.rs"
 
 [[bin]]
-name = "coven-chat"
+name = "coven-chat-legacy"
 path = "src/main.rs"
 
 [dependencies]
