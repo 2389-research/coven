@@ -2,6 +2,7 @@
 // ABOUTME: Channel-based async architecture with Ratatui
 
 pub mod app;
+pub mod cli;
 pub mod client;
 pub mod types;
 pub mod ui;

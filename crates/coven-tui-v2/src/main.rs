@@ -9,7 +9,6 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::io::{self, Stdout};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -17,6 +16,7 @@ use tokio::sync::mpsc;
 
 use coven_tui_v2::app::{Action, App};
 use coven_tui_v2::client::{Client, Response, StateChange};
+use coven_tui_v2::types::Config;
 use coven_tui_v2::ui;
 
 /// Terminal chat interface for coven agents
@@ -44,20 +44,6 @@ enum Command {
     },
     /// First-time setup wizard
     Setup,
-}
-
-/// Application configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
-    pub gateway_url: String,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            gateway_url: "http://localhost:7777".to_string(),
-        }
-    }
 }
 
 /// Get the configuration directory path
@@ -99,15 +85,14 @@ async fn main() -> Result<()> {
 
     // Handle subcommands
     match args.command {
-        Some(Command::Send { message, print }) => {
-            // Non-interactive mode - not yet implemented
-            if print {
-                eprintln!("Send command not yet implemented: {}", message);
-            }
+        Some(Command::Send { message, print: _ }) => {
+            // Load config for send command
+            let config = load_config()?;
+            coven_tui_v2::cli::send::run(&config, &message, args.agent.as_deref())?;
             return Ok(());
         }
         Some(Command::Setup) => {
-            eprintln!("Setup wizard not yet implemented");
+            coven_tui_v2::cli::setup::run()?;
             return Ok(());
         }
         None => {
