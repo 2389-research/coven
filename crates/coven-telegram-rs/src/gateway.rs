@@ -4,8 +4,8 @@
 use crate::error::{BridgeError, Result};
 use coven_proto::client::ClientServiceClient;
 use coven_proto::{
-    AgentInfo, ClientSendMessageRequest, ClientSendMessageResponse, ClientStreamEvent,
-    ListAgentsRequest, StreamEventsRequest,
+    AgentInfo, ApproveToolRequest, ClientSendMessageRequest, ClientSendMessageResponse,
+    ClientStreamEvent, ListAgentsRequest, StreamEventsRequest,
 };
 use tonic::transport::Channel;
 use tonic::{Request, Status};
@@ -95,5 +95,31 @@ impl GatewayClient {
 
         let response = self.client.stream_events(request).await?;
         Ok(response.into_inner())
+    }
+
+    /// Respond to a tool approval request.
+    pub async fn approve_tool(
+        &mut self,
+        agent_id: String,
+        tool_id: String,
+        approved: bool,
+        approve_all: bool,
+    ) -> Result<()> {
+        debug!(agent_id = %agent_id, tool_id = %tool_id, approved = %approved, "Responding to tool approval");
+
+        let request = ApproveToolRequest {
+            agent_id,
+            tool_id,
+            approved,
+            approve_all,
+        };
+
+        let response = self.client.approve_tool(request).await?;
+        let inner = response.into_inner();
+        if !inner.success {
+            let err_msg = inner.error.unwrap_or_else(|| "unknown error".to_string());
+            return Err(BridgeError::Config(format!("tool approval failed: {}", err_msg)).into());
+        }
+        Ok(())
     }
 }

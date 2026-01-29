@@ -72,28 +72,41 @@ impl StreamCallback for CallbackBridge {
                 input_json,
             },
             StreamEvent::Usage { info } => Response::Usage {
-                input: info.input_tokens as u32,
-                output: info.output_tokens as u32,
+                // Saturate negative values to 0 to prevent integer overflow
+                input: info.input_tokens.max(0) as u32,
+                output: info.output_tokens.max(0) as u32,
             },
             StreamEvent::Done => Response::Done,
             StreamEvent::Error { message } => Response::Error(message),
         };
-        let _ = self.response_tx.blocking_send(response);
+        // Use try_send to avoid blocking the callback thread
+        if self.response_tx.try_send(response).is_err() {
+            tracing::warn!("Response channel full, dropping stream event");
+        }
     }
 }
 
 impl StateCallback for CallbackBridge {
     fn on_connection_status(&self, status: ConnectionStatus) {
         let connected = matches!(status, ConnectionStatus::Connected);
-        let _ = self
+        // Use try_send to avoid blocking the callback thread
+        if self
             .state_tx
-            .blocking_send(StateChange::ConnectionStatus(connected));
+            .try_send(StateChange::ConnectionStatus(connected))
+            .is_err()
+        {
+            tracing::warn!("State channel full, dropping connection status");
+        }
     }
 
     fn on_messages_changed(&self, agent_id: String) {
-        let _ = self
+        if self
             .state_tx
-            .blocking_send(StateChange::MessagesChanged(agent_id));
+            .try_send(StateChange::MessagesChanged(agent_id))
+            .is_err()
+        {
+            tracing::warn!("State channel full, dropping messages changed");
+        }
     }
 
     fn on_queue_changed(&self, _agent_id: String, _count: u32) {}
@@ -101,9 +114,13 @@ impl StateCallback for CallbackBridge {
     fn on_unread_changed(&self, _agent_id: String, _count: u32) {}
 
     fn on_streaming_changed(&self, agent_id: String, is_streaming: bool) {
-        let _ = self
+        if self
             .state_tx
-            .blocking_send(StateChange::StreamingChanged(agent_id, is_streaming));
+            .try_send(StateChange::StreamingChanged(agent_id, is_streaming))
+            .is_err()
+        {
+            tracing::warn!("State channel full, dropping streaming changed");
+        }
     }
 }
 

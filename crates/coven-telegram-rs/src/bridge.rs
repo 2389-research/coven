@@ -330,8 +330,15 @@ impl Bridge {
                     debug!("Received full event (history replay)");
                 }
                 Some(Payload::ToolApproval(approval)) => {
-                    // Tool approval requests not supported in Telegram bridge
+                    // Tool approval requests not supported in Telegram bridge - auto-deny
                     debug!(tool_name = %approval.tool_name, "Tool approval request (auto-denied in Telegram)");
+                    let mut gateway = self.gateway.write().await;
+                    if let Err(e) = gateway
+                        .approve_tool(approval.agent_id, approval.tool_id, false, false)
+                        .await
+                    {
+                        error!(error = %e, "Failed to send tool denial");
+                    }
                 }
                 None => {
                     debug!("Received empty payload");

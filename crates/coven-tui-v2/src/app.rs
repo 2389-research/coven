@@ -362,6 +362,8 @@ impl App {
                     });
                 }
                 self.mode = Mode::Chat;
+                // Clear any previous error on successful completion
+                self.error = None;
             }
             Response::Error(err) => {
                 self.error = Some(err);
@@ -375,6 +377,16 @@ impl App {
                 tool_name,
                 input_json,
             } => {
+                // Limit pending approvals to prevent unbounded memory growth
+                const MAX_PENDING_APPROVALS: usize = 100;
+                if self.pending_approvals.len() >= MAX_PENDING_APPROVALS {
+                    // Drop oldest approval to make room
+                    self.pending_approvals.remove(0);
+                    if let Some(idx) = self.selected_approval {
+                        self.selected_approval = Some(idx.saturating_sub(1));
+                    }
+                }
+
                 let approval = PendingApproval {
                     agent_id,
                     request_id,
