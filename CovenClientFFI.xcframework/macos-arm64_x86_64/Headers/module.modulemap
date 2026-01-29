@@ -1,0 +1,4 @@
+module coven_clientFFI {
+    header "coven_clientFFI.h"
+    export *
+}

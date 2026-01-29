@@ -1,4 +1,0 @@
-module fold_clientFFI {
-    header "fold_clientFFI.h"
-    export *
-}

@@ -55,16 +55,16 @@ cargo build --release --package coven-client --target x86_64-apple-darwin
 echo "==> Creating universal simulator library..."
 mkdir -p target/universal-sim
 lipo -create \
-    target/aarch64-apple-ios-sim/release/libfold_client.a \
-    target/x86_64-apple-ios/release/libfold_client.a \
-    -output target/universal-sim/libfold_client.a
+    target/aarch64-apple-ios-sim/release/libcoven_client.a \
+    target/x86_64-apple-ios/release/libcoven_client.a \
+    -output target/universal-sim/libcoven_client.a
 
 echo "==> Creating universal macOS library..."
 mkdir -p target/universal-macos
 lipo -create \
-    target/aarch64-apple-darwin/release/libfold_client.a \
-    target/x86_64-apple-darwin/release/libfold_client.a \
-    -output target/universal-macos/libfold_client.a
+    target/aarch64-apple-darwin/release/libcoven_client.a \
+    target/x86_64-apple-darwin/release/libcoven_client.a \
+    -output target/universal-macos/libcoven_client.a
 
 echo "==> Creating module map..."
 mkdir -p "$BINDINGS_DIR"
@@ -80,11 +80,11 @@ rm -rf "$OUTPUT_DIR"
 
 echo "==> Creating XCFramework..."
 xcodebuild -create-xcframework \
-    -library target/aarch64-apple-ios/release/libfold_client.a \
+    -library target/aarch64-apple-ios/release/libcoven_client.a \
     -headers "$BINDINGS_DIR" \
-    -library target/universal-sim/libfold_client.a \
+    -library target/universal-sim/libcoven_client.a \
     -headers "$BINDINGS_DIR" \
-    -library target/universal-macos/libfold_client.a \
+    -library target/universal-macos/libcoven_client.a \
     -headers "$BINDINGS_DIR" \
     -output "$OUTPUT_DIR"
 
