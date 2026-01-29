@@ -132,9 +132,54 @@ jobs:
           name: xcframework
           path: CovenClientFFI-${{ github.ref_name }}.xcframework.zip
 
+  android:
+    name: Build Android Libraries
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "25.x"
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set NDK environment
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> "$GITHUB_ENV"
+
+      - name: Build Android libraries
+        run: ./scripts/build-android.sh
+
+      - name: Create zip
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cd coven-client-android
+          zip -r "../coven-client-android-${VERSION}.zip" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: coven-client-android-${{ github.ref_name }}.zip
+
   release:
     name: Create Release
-    needs: [build, xcframework]
+    needs: [build, xcframework, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -155,6 +200,7 @@ jobs:
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.xcframework.zip
+            artifacts/**/*-android-*.zip
 
   homebrew:
     name: Update Homebrew Formula
