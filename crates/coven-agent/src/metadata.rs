@@ -4,6 +4,13 @@
 use std::path::Path;
 use std::process::Command;
 
+/// Default capabilities for agents when not specified in config.
+/// - "base": Access to gateway builtin tools (log, todo, bbs)
+/// - "chat": Basic chat/messaging capability
+pub fn default_capabilities() -> Vec<String> {
+    vec!["base".to_string(), "chat".to_string()]
+}
+
 /// Git repository state
 #[derive(Debug, Clone, Default)]
 pub struct GitInfo {
@@ -26,6 +33,8 @@ pub struct AgentMetadata {
     pub workspaces: Vec<String>,
     /// Backend type: "mux" or "cli" (set by caller)
     pub backend: String,
+    /// Capabilities this agent supports (set from config, defaults to ["base", "chat"])
+    pub capabilities: Vec<String>,
 }
 
 impl GitInfo {
@@ -132,6 +141,7 @@ impl AgentMetadata {
             os,
             workspaces: Vec::new(), // Set by caller from config
             backend: String::new(), // Set by caller
+            capabilities: Vec::new(), // Set by caller from config
         }
     }
 }

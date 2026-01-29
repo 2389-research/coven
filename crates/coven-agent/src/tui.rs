@@ -52,11 +52,11 @@ use tonic::transport::Channel;
 
 use crate::metadata::AgentMetadata;
 
+use coven_connect::event::convert_event_to_response;
+use coven_connect::MAX_REGISTRATION_ATTEMPTS;
+
 /// Maximum number of log lines to keep
 const MAX_LOG_LINES: usize = 1000;
-
-/// Maximum number of registration attempts before giving up
-const MAX_REGISTRATION_ATTEMPTS: usize = 100;
 
 /// Exit goodbyes - randomly selected on quit
 const EXIT_GOODBYES: &[&str] = &[
@@ -438,6 +438,7 @@ pub async fn run(
     agent_id: &str,
     backend_type: &str,
     working_dir: &std::path::Path,
+    capabilities: Vec<String>,
 ) -> Result<()> {
     // Setup terminal - guard created immediately after raw mode to ensure cleanup on panic
     enable_raw_mode()?;
@@ -466,9 +467,10 @@ pub async fn run(
     let id = agent_id.to_string();
     let backend_str = backend_type.to_string();
     let work_dir = working_dir.to_path_buf();
+    let caps = capabilities;
 
     tokio::spawn(async move {
-        if let Err(e) = run_agent_task(&agent_tx, &server, &id, &backend_str, &work_dir).await {
+        if let Err(e) = run_agent_task(&agent_tx, &server, &id, &backend_str, &work_dir, caps).await {
             let _ = agent_tx
                 .send(UiEvent::Block(
                     BlockKind::Error,
@@ -574,6 +576,7 @@ async fn run_agent_task(
     agent_id: &str,
     backend_type: &str,
     working_dir: &std::path::Path,
+    capabilities: Vec<String>,
 ) -> Result<()> {
     tx.send(UiEvent::Block(
         BlockKind::System,
@@ -745,6 +748,7 @@ async fn run_agent_task(
     .await?;
     let mut metadata = AgentMetadata::gather(working_dir);
     metadata.backend = backend_type.to_string();
+    metadata.capabilities = capabilities;
     tx.send(UiEvent::Block(
         BlockKind::System,
         format!("Working directory: {}", metadata.working_directory),
@@ -805,7 +809,7 @@ async fn run_agent_task(
                 payload: Some(agent_message::Payload::Register(RegisterAgent {
                     agent_id: current_id.clone(),
                     name: current_id.clone(),
-                    capabilities: vec!["chat".to_string()],
+                    capabilities: metadata.capabilities.clone(),
                     metadata: Some(metadata.clone().into()),
                     protocol_features: vec!["token_usage".to_string(), "tool_states".to_string()],
                 })),
@@ -1230,128 +1234,6 @@ async fn run_agent_task(
     .await?;
 
     Ok(())
-}
-
-/// Maximum file size in bytes (10 MB)
-const MAX_FILE_SIZE_BYTES: u64 = 10 * 1024 * 1024;
-
-async fn convert_event_to_response(request_id: &str, event: OutgoingEvent) -> AgentMessage {
-    use coven_proto::message_response::Event;
-
-    let event = match event {
-        OutgoingEvent::Thinking => Event::Thinking("thinking...".to_string()),
-        OutgoingEvent::Text(s) => Event::Text(s),
-        OutgoingEvent::ToolUse { id, name, input } => Event::ToolUse(coven_proto::ToolUse {
-            id,
-            name,
-            input_json: input.to_string(),
-        }),
-        OutgoingEvent::ToolResult {
-            id,
-            output,
-            is_error,
-        } => Event::ToolResult(coven_proto::ToolResult {
-            id,
-            output,
-            is_error,
-        }),
-        OutgoingEvent::Done { full_response } => Event::Done(coven_proto::Done { full_response }),
-        OutgoingEvent::Error(e) => Event::Error(e),
-        OutgoingEvent::ToolApprovalRequest { id, name, input } => {
-            Event::ToolApprovalRequest(coven_proto::ToolApprovalRequest {
-                id,
-                name,
-                input_json: input.to_string(),
-            })
-        }
-        OutgoingEvent::File {
-            path,
-            filename,
-            mime_type,
-        } => {
-            // Check file size before reading to avoid memory exhaustion
-            match tokio::fs::metadata(&path).await {
-                Ok(metadata) => {
-                    let size = metadata.len();
-                    if size > MAX_FILE_SIZE_BYTES {
-                        Event::Error(format!(
-                            "File '{}' exceeds size limit: {} bytes (max {} bytes)",
-                            path.display(),
-                            size,
-                            MAX_FILE_SIZE_BYTES
-                        ))
-                    } else {
-                        // Use async read to avoid blocking the runtime
-                        match tokio::fs::read(&path).await {
-                            Ok(data) => Event::File(coven_proto::FileData {
-                                filename,
-                                mime_type,
-                                data,
-                            }),
-                            Err(e) => Event::Error(format!(
-                                "Failed to read file '{}': {}",
-                                path.display(),
-                                e
-                            )),
-                        }
-                    }
-                }
-                Err(e) => Event::Error(format!(
-                    "Failed to get file metadata '{}': {}",
-                    path.display(),
-                    e
-                )),
-            }
-        }
-        OutgoingEvent::SessionInit { session_id } => {
-            Event::SessionInit(coven_proto::SessionInit { session_id })
-        }
-        OutgoingEvent::SessionOrphaned => Event::SessionOrphaned(coven_proto::SessionOrphaned {
-            reason: "Session expired".to_string(),
-        }),
-        OutgoingEvent::Usage {
-            input_tokens,
-            output_tokens,
-            cache_read_tokens,
-            cache_write_tokens,
-            thinking_tokens,
-        } => Event::Usage(coven_proto::TokenUsage {
-            input_tokens,
-            output_tokens,
-            cache_read_tokens,
-            cache_write_tokens,
-            thinking_tokens,
-        }),
-        OutgoingEvent::ToolState { id, state, detail } => {
-            Event::ToolState(coven_proto::ToolStateUpdate {
-                id,
-                state: tool_state_string_to_proto(&state),
-                detail,
-            })
-        }
-    };
-
-    AgentMessage {
-        payload: Some(agent_message::Payload::Response(MessageResponse {
-            request_id: request_id.to_string(),
-            event: Some(event),
-        })),
-    }
-}
-
-/// Convert OutgoingEvent tool state string to proto ToolState enum value
-fn tool_state_string_to_proto(state: &str) -> i32 {
-    match state {
-        "pending" => coven_proto::ToolState::Pending as i32,
-        "awaiting_approval" => coven_proto::ToolState::AwaitingApproval as i32,
-        "running" => coven_proto::ToolState::Running as i32,
-        "completed" => coven_proto::ToolState::Completed as i32,
-        "failed" => coven_proto::ToolState::Failed as i32,
-        "denied" => coven_proto::ToolState::Denied as i32,
-        "timeout" => coven_proto::ToolState::Timeout as i32,
-        "cancelled" => coven_proto::ToolState::Cancelled as i32,
-        _ => coven_proto::ToolState::Unspecified as i32,
-    }
 }
 
 fn draw_ui(f: &mut Frame, app: &mut App) -> usize {

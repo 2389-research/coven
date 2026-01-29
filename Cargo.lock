@@ -996,6 +996,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "clap",
+ "coven-connect",
  "coven-core",
  "coven-link",
  "coven-proto",
@@ -1070,6 +1071,30 @@ dependencies = [
  "tracing",
  "uniffi",
  "url",
+]
+
+[[package]]
+name = "coven-connect"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "coven-core",
+ "coven-link",
+ "coven-proto",
+ "coven-ssh",
+ "dirs",
+ "futures",
+ "prost",
+ "serde",
+ "serde_json",
+ "ssh-key",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tracing",
 ]
 
 [[package]]

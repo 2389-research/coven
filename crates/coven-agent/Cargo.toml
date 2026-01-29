@@ -19,6 +19,7 @@ path = "src/lib.rs"
 [dependencies]
 # Internal crates
 coven-core.workspace = true
+coven-connect.workspace = true
 coven-link.workspace = true
 coven-ssh.workspace = true
 coven-proto.workspace = true

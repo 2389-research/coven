@@ -2,13 +2,15 @@
 // ABOUTME: Handles connection, registration, message processing loop
 
 use anyhow::{Result, bail};
+use coven_connect::event::convert_event_to_response;
+use coven_connect::registration::{SelfRegisterResult, try_self_register};
+use coven_connect::MAX_REGISTRATION_ATTEMPTS;
 use coven_core::backend::{
     ApprovalCallback, Backend, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
 };
 use coven_core::{Config, Coven, IncomingMessage, OutgoingEvent};
 use coven_proto::coven_control_client::CovenControlClient;
-use coven_proto::client_service_client::ClientServiceClient;
-use coven_proto::{AgentMessage, MessageResponse, RegisterAgent, RegisterAgentRequest, agent_message, server_message};
+use coven_proto::{AgentMessage, MessageResponse, RegisterAgent, agent_message, server_message};
 use coven_ssh::{
     SshAuthCredentials, compute_fingerprint, default_agent_key_path, load_or_generate_key,
 };
@@ -23,120 +25,6 @@ use tonic::transport::Channel;
 use crate::pack_tool::{
     PackTool, PendingPackTools, handle_pack_tool_result, new_pending_pack_tools,
 };
-
-/// Maximum number of registration attempts before giving up (agent ID suffix)
-const MAX_REGISTRATION_ATTEMPTS: usize = 10;
-
-/// Result of attempting self-registration
-#[derive(Debug)]
-enum SelfRegisterResult {
-    /// Successfully registered or already exists
-    Success,
-    /// No token available (user needs to run coven-link)
-    NoToken(String),
-    /// Registration failed with error
-    Failed(String),
-}
-
-/// Check if file permissions are secure (owner-only read on Unix)
-#[cfg(unix)]
-fn check_token_file_permissions(path: &std::path::Path) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let metadata = std::fs::metadata(path)
-        .map_err(|e| format!("Cannot read file metadata: {}", e))?;
-
-    let mode = metadata.permissions().mode();
-    // Check if group or others have any permissions (bits 0o077)
-    if mode & 0o077 != 0 {
-        return Err(format!(
-            "Token file {} has insecure permissions {:o}. Run: chmod 600 {}",
-            path.display(),
-            mode & 0o777,
-            path.display()
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn check_token_file_permissions(_path: &std::path::Path) -> Result<(), String> {
-    // On non-Unix systems, we can't easily check permissions
-    Ok(())
-}
-
-/// Try to self-register the agent using JWT auth from coven-link config
-async fn try_self_register(server_addr: &str, fingerprint: &str, display_name: &str) -> Result<SelfRegisterResult> {
-    // Load token from ~/.config/coven/token
-    let token_path = dirs::home_dir()
-        .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?
-        .join(".config/coven/token");
-
-    // Check file permissions before reading
-    if let Err(warning) = check_token_file_permissions(&token_path) {
-        eprintln!("  WARNING: {}", warning);
-        // Continue anyway but warn - don't block users on permission issues
-    }
-
-    let token = match std::fs::read_to_string(&token_path) {
-        Ok(t) => t.trim().to_string(),
-        Err(_) => {
-            return Ok(SelfRegisterResult::NoToken(format!(
-                "No coven token found at {}. Run 'coven link' first.",
-                token_path.display()
-            )));
-        }
-    };
-
-    if token.is_empty() {
-        return Ok(SelfRegisterResult::NoToken(
-            "Coven token file is empty. Run 'coven link' first.".to_string()
-        ));
-    }
-
-    eprintln!("  Attempting auto-registration...");
-
-    // Connect to ClientService with JWT auth
-    let channel = Channel::from_shared(server_addr.to_string())?
-        .connect()
-        .await?;
-
-    let token_clone = token.clone();
-    let jwt_interceptor = move |mut req: tonic::Request<()>| -> std::result::Result<tonic::Request<()>, tonic::Status> {
-        let auth_value = format!("Bearer {}", token_clone)
-            .parse()
-            .map_err(|_| tonic::Status::internal("invalid token format"))?;
-        req.metadata_mut().insert("authorization", auth_value);
-        Ok(req)
-    };
-
-    let mut client = ClientServiceClient::with_interceptor(channel, jwt_interceptor);
-
-    // Call RegisterAgent
-    let request = RegisterAgentRequest {
-        display_name: display_name.to_string(),
-        fingerprint: fingerprint.to_string(),
-    };
-
-    match client.register_agent(request).await {
-        Ok(response) => {
-            let resp = response.into_inner();
-            eprintln!("  ✓ Agent registered! Principal ID: {}", resp.principal_id);
-            Ok(SelfRegisterResult::Success)
-        }
-        Err(e) if e.code() == Code::AlreadyExists => {
-            // Already registered - this is fine, just means we can proceed
-            eprintln!("  Agent fingerprint already registered.");
-            Ok(SelfRegisterResult::Success)
-        }
-        Err(e) => {
-            Ok(SelfRegisterResult::Failed(format!("Auto-registration failed: {}", e.message())))
-        }
-    }
-}
-
-/// Maximum file size allowed for OutgoingEvent::File (10 MB)
-const MAX_FILE_SIZE_BYTES: u64 = 10 * 1024 * 1024;
 
 /// Maximum concurrent message processing tasks (backpressure)
 const MAX_CONCURRENT_MESSAGES: usize = 8;
@@ -354,7 +242,7 @@ pub async fn run(
             payload: Some(agent_message::Payload::Register(RegisterAgent {
                 agent_id: current_id.clone(),
                 name: current_id.clone(),
-                capabilities: vec!["chat".to_string()],
+                capabilities: metadata.capabilities.clone(),
                 metadata: Some(metadata.clone().into()),
                 protocol_features: vec!["token_usage".to_string(), "tool_states".to_string()],
             })),
@@ -670,110 +558,6 @@ async fn process_message(
     }
 }
 
-async fn convert_event_to_response(request_id: &str, event: OutgoingEvent) -> AgentMessage {
-    use coven_proto::message_response::Event;
-
-    let event = match event {
-        OutgoingEvent::Thinking => Event::Thinking("thinking...".to_string()),
-        OutgoingEvent::Text(s) => Event::Text(s),
-        OutgoingEvent::ToolUse { id, name, input } => Event::ToolUse(coven_proto::ToolUse {
-            id,
-            name,
-            input_json: input.to_string(),
-        }),
-        OutgoingEvent::ToolResult {
-            id,
-            output,
-            is_error,
-        } => Event::ToolResult(coven_proto::ToolResult {
-            id,
-            output,
-            is_error,
-        }),
-        OutgoingEvent::Done { full_response } => Event::Done(coven_proto::Done { full_response }),
-        OutgoingEvent::Error(e) => Event::Error(e),
-        OutgoingEvent::ToolApprovalRequest { id, name, input } => {
-            Event::ToolApprovalRequest(coven_proto::ToolApprovalRequest {
-                id,
-                name,
-                input_json: input.to_string(),
-            })
-        }
-        OutgoingEvent::File {
-            path,
-            filename,
-            mime_type,
-        } => {
-            // Check file size before reading to avoid memory issues
-            match tokio::fs::metadata(&path).await {
-                Ok(metadata) => {
-                    let size = metadata.len();
-                    if size > MAX_FILE_SIZE_BYTES {
-                        Event::Error(format!(
-                            "File '{}' exceeds size limit: {} bytes (max {} bytes)",
-                            path.display(),
-                            size,
-                            MAX_FILE_SIZE_BYTES
-                        ))
-                    } else {
-                        // Use async read to avoid blocking the runtime
-                        match tokio::fs::read(&path).await {
-                            Ok(data) => Event::File(coven_proto::FileData {
-                                filename,
-                                mime_type,
-                                data,
-                            }),
-                            Err(e) => Event::Error(format!(
-                                "Failed to read file '{}': {}",
-                                path.display(),
-                                e
-                            )),
-                        }
-                    }
-                }
-                Err(e) => Event::Error(format!(
-                    "Failed to get file metadata for '{}': {}",
-                    path.display(),
-                    e
-                )),
-            }
-        }
-        OutgoingEvent::SessionInit { session_id } => {
-            Event::SessionInit(coven_proto::SessionInit { session_id })
-        }
-        OutgoingEvent::SessionOrphaned => Event::SessionOrphaned(coven_proto::SessionOrphaned {
-            reason: "Session expired".to_string(),
-        }),
-        OutgoingEvent::Usage {
-            input_tokens,
-            output_tokens,
-            cache_read_tokens,
-            cache_write_tokens,
-            thinking_tokens,
-        } => Event::Usage(coven_proto::TokenUsage {
-            input_tokens,
-            output_tokens,
-            cache_read_tokens,
-            cache_write_tokens,
-            thinking_tokens,
-        }),
-        OutgoingEvent::ToolState { id, state, detail } => {
-            Event::ToolState(coven_proto::ToolStateUpdate {
-                id,
-                state: outgoing_tool_state_to_proto(&state),
-                detail,
-            })
-        }
-    };
-
-    AgentMessage {
-        payload: Some(agent_message::Payload::Response(MessageResponse {
-            request_id: request_id.to_string(),
-            event: Some(event),
-        })),
-    }
-}
-
 /// Log an event with meaningful content for auditing
 fn log_event(n: usize, event: &OutgoingEvent, verbose: bool) {
     if verbose {
@@ -869,21 +653,6 @@ fn log_event(n: usize, event: &OutgoingEvent, verbose: bool) {
                 eprintln!("  tool_state: {id} -> {state}");
             }
         }
-    }
-}
-
-/// Convert OutgoingEvent tool state string to coven_proto ToolState enum value
-fn outgoing_tool_state_to_proto(state: &str) -> i32 {
-    match state {
-        "pending" => coven_proto::ToolState::Pending as i32,
-        "awaiting_approval" => coven_proto::ToolState::AwaitingApproval as i32,
-        "running" => coven_proto::ToolState::Running as i32,
-        "completed" => coven_proto::ToolState::Completed as i32,
-        "failed" => coven_proto::ToolState::Failed as i32,
-        "denied" => coven_proto::ToolState::Denied as i32,
-        "timeout" => coven_proto::ToolState::Timeout as i32,
-        "cancelled" => coven_proto::ToolState::Cancelled as i32,
-        _ => coven_proto::ToolState::Unspecified as i32,
     }
 }
 

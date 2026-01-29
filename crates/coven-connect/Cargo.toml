@@ -1,0 +1,45 @@
+# ABOUTME: Shared gateway connection utilities for coven agents
+# ABOUTME: Provides SSH auth, registration, event conversion, and auto-registration
+
+[package]
+name = "coven-connect"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared gateway connection utilities for coven agents"
+
+[dependencies]
+# Internal crates
+coven-core.workspace = true
+coven-proto.workspace = true
+coven-ssh.workspace = true
+coven-link.workspace = true
+
+# Async
+tokio.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+
+# gRPC
+tonic.workspace = true
+prost.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Misc
+base64.workspace = true
+dirs.workspace = true
+
+# SSH key handling
+ssh-key.workspace = true

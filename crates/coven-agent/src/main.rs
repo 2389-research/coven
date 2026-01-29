@@ -219,7 +219,7 @@ async fn run_agent(
     });
 
     // Load settings from config - required unless running in single mode
-    let (server, name, backend, working_dir, workspaces) = if let Some(ref config_path) =
+    let (server, name, backend, working_dir, workspaces, capabilities) = if let Some(ref config_path) =
         config_path
     {
         tracing::info!("Loading config from: {}", config_path.display());
@@ -304,12 +304,24 @@ async fn run_agent(
             })
             .unwrap_or_default();
 
+        // Load capabilities from config (default to base + chat for gateway tools)
+        let capabilities: Vec<String> = config
+            .get("capabilities")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_else(metadata::default_capabilities);
+
         (
             server,
             name,
             backend,
             working_dir.or(config_working_dir),
             workspaces,
+            capabilities,
         )
     } else if !single {
         // Config is required for gateway mode
@@ -320,8 +332,8 @@ async fn run_agent(
              - ~/.config/coven/agent.toml (user-global)"
         );
     } else {
-        // Single mode can work without config (just uses defaults)
-        (server, name, backend, working_dir, Vec::new())
+        // Single mode can work without config - use default capabilities
+        (server, name, backend, working_dir, Vec::new(), metadata::default_capabilities())
     };
 
     // Default to current directory if not specified
@@ -347,12 +359,13 @@ async fn run_agent(
     }
 
     match mode {
-        DisplayMode::Tui => tui::run(&server, &agent_id, &backend_type, &working_dir).await,
+        DisplayMode::Tui => tui::run(&server, &agent_id, &backend_type, &working_dir, capabilities).await,
         DisplayMode::Headless => {
             // Gather metadata for registration
             let mut metadata = metadata::AgentMetadata::gather(&working_dir);
             metadata.workspaces = workspaces;
             metadata.backend = backend_type.to_string();
+            metadata.capabilities = capabilities;
 
             // Log metadata for debugging
             eprintln!("Agent metadata:");
@@ -360,6 +373,7 @@ async fn run_agent(
             eprintln!("  Hostname: {}", metadata.hostname);
             eprintln!("  OS: {}", metadata.os);
             eprintln!("  Backend: {}", metadata.backend);
+            eprintln!("  Capabilities: {:?}", metadata.capabilities);
             if !metadata.workspaces.is_empty() {
                 eprintln!("  Workspaces: {:?}", metadata.workspaces);
             }

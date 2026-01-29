@@ -164,7 +164,7 @@ pub async fn run_agent(config: AgentRunConfig) -> Result<()> {
     });
 
     // Load settings from config - required unless running in single mode
-    let (server, name, backend, working_dir, workspaces) = if let Some(ref config_path) = config_path
+    let (server, name, backend, working_dir, workspaces, capabilities) = if let Some(ref config_path) = config_path
     {
         tracing::info!("Loading config from: {}", config_path.display());
         let config_content = std::fs::read_to_string(config_path)
@@ -246,12 +246,23 @@ pub async fn run_agent(config: AgentRunConfig) -> Result<()> {
             })
             .unwrap_or_default();
 
+        let capabilities: Vec<String> = loaded_config
+            .get("capabilities")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_else(crate::metadata::default_capabilities);
+
         (
             server,
             name,
             backend,
             config.working_dir.or(config_working_dir),
             workspaces,
+            capabilities,
         )
     } else if !config.single {
         // Config is required for gateway mode
@@ -262,8 +273,8 @@ pub async fn run_agent(config: AgentRunConfig) -> Result<()> {
              - ~/.config/coven/agent.toml (user-global)"
         );
     } else {
-        // Single mode can work without config
-        (config.server, config.name, config.backend, config.working_dir, Vec::new())
+        // Single mode can work without config - use default capabilities
+        (config.server, config.name, config.backend, config.working_dir, Vec::new(), crate::metadata::default_capabilities())
     };
 
     // Default to current directory if not specified
@@ -288,12 +299,13 @@ pub async fn run_agent(config: AgentRunConfig) -> Result<()> {
     }
 
     match mode {
-        DisplayMode::Tui => crate::tui::run(&server, &agent_id, &backend_type, &working_dir).await,
+        DisplayMode::Tui => crate::tui::run(&server, &agent_id, &backend_type, &working_dir, capabilities).await,
         DisplayMode::Headless => {
             // Gather metadata for registration
             let mut metadata = crate::metadata::AgentMetadata::gather(&working_dir);
             metadata.workspaces = workspaces;
             metadata.backend = backend_type.to_string();
+            metadata.capabilities = capabilities;
 
             // Log metadata for debugging
             eprintln!("Agent metadata:");
@@ -301,6 +313,7 @@ pub async fn run_agent(config: AgentRunConfig) -> Result<()> {
             eprintln!("  Hostname: {}", metadata.hostname);
             eprintln!("  OS: {}", metadata.os);
             eprintln!("  Backend: {}", metadata.backend);
+            eprintln!("  Capabilities: {:?}", metadata.capabilities);
             if !metadata.workspaces.is_empty() {
                 eprintln!("  Workspaces: {:?}", metadata.workspaces);
             }
