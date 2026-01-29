@@ -305,8 +305,12 @@ pub async fn run(
                                 eprintln!("    - {}", tool_def.name);
                                 mux.register_tool(pack_tool).await;
                             }
-                        } else {
-                            eprintln!("    (skipped - not using mux backend)");
+                        } else if cli_backend.is_some() {
+                            // CLI backend: tools available via MCP server (Claude CLI connects directly)
+                            for tool_def in &welcome.available_tools {
+                                eprintln!("    - {}", tool_def.name);
+                            }
+                            eprintln!("    (available via MCP server)");
                         }
                     }
 
