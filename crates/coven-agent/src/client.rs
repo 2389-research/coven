@@ -266,8 +266,7 @@ pub async fn run(
                         if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
                             let mcp_url =
                                 crate::build_mcp_url(&welcome.mcp_endpoint, &welcome.mcp_token);
-                            // Don't log full URL - it contains the auth token
-                            eprintln!("  MCP endpoint: configured (token received)");
+                            eprintln!("  MCP endpoint: {}", mcp_url);
                             cli.set_mcp_endpoint(mcp_url);
                         } else if welcome.mcp_endpoint.is_empty() {
                             eprintln!("  MCP endpoint: (not provided by gateway)");
@@ -278,7 +277,24 @@ pub async fn run(
                         }
                     }
 
-                    // Register pack tools if available
+                    // Connect mux backend to gateway MCP if endpoint and token provided
+                    if let Some(ref mux) = mux_backend {
+                        if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
+                            let mcp_url =
+                                crate::build_mcp_url(&welcome.mcp_endpoint, &welcome.mcp_token);
+                            eprintln!("  MCP endpoint: {}", mcp_url);
+                            match mux.connect_gateway_mcp(&welcome.mcp_endpoint, &welcome.mcp_token).await {
+                                Ok(count) => {
+                                    eprintln!("  Gateway MCP: connected ({} tools)", count);
+                                }
+                                Err(e) => {
+                                    eprintln!("  Gateway MCP: connection failed: {}", e);
+                                }
+                            }
+                        }
+                    }
+
+                    // Register pack tools if available (from Welcome message tool definitions)
                     let tool_count = welcome.available_tools.len();
                     if tool_count > 0 {
                         eprintln!("  Pack tools: {} available", tool_count);
