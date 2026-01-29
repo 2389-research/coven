@@ -154,8 +154,8 @@ async fn run_main_loop(
     let config_dir = config_dir()?;
     let mut app = App::load(&config_dir, initial_agent);
 
-    // Initial connection status
-    app.connected = client.check_health().is_ok();
+    // Initial connection status (use async version since we're in async context)
+    app.connected = client.check_health_async().await.is_ok();
 
     // Fetch initial agent list
     match client.list_agents().await {

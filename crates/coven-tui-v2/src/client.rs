@@ -182,6 +182,14 @@ impl Client {
             .map_err(|e| anyhow!("Health check failed: {}", e))
     }
 
+    /// Check gateway health (async version - use this from async contexts)
+    pub async fn check_health_async(&self) -> Result<()> {
+        self.inner
+            .check_health_async()
+            .await
+            .map_err(|e| anyhow!("Health check failed: {}", e))
+    }
+
     /// Respond to a tool approval request (async version for tokio context)
     pub async fn approve_tool_async(
         &self,
