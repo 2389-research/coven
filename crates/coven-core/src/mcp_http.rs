@@ -79,6 +79,15 @@ struct ToolsCallResult {
     is_error: bool,
 }
 
+/// Truncate a string for inclusion in error messages.
+fn truncate_for_error(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}...(truncated)", &s[..max_len])
+    }
+}
+
 impl HttpMcpClient {
     /// Create a new HTTP MCP client.
     ///
@@ -169,16 +178,34 @@ impl HttpMcpClient {
             params: None,
         };
 
-        let resp: JsonRpcResponse = self
+        let response = self
             .client
             .post(self.url_with_token())
             .json(&req)
             .send()
             .await
-            .context("Failed to send tools/list request")?
-            .json()
+            .context("Failed to send tools/list request")?;
+
+        let status = response.status();
+        let body = response
+            .text()
             .await
-            .context("Failed to parse tools/list response")?;
+            .context("Failed to read tools/list response body")?;
+
+        if !status.is_success() {
+            anyhow::bail!(
+                "MCP tools/list failed with status {}: {}",
+                status,
+                truncate_for_error(&body, 500)
+            );
+        }
+
+        let resp: JsonRpcResponse = serde_json::from_str(&body).with_context(|| {
+            format!(
+                "Failed to parse tools/list response as JSON-RPC: {}",
+                truncate_for_error(&body, 500)
+            )
+        })?;
 
         if let Some(err) = resp.error {
             anyhow::bail!("MCP tools/list failed: {}", err.message);
