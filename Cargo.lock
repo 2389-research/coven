@@ -1378,6 +1378,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "coven-tui-v2"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "coven-client",
+ "coven-ssh",
+ "crossterm",
+ "dirs",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tui-textarea",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,44 @@
+# ABOUTME: Coven TUI v2 - simplified terminal interface for coven agents
+# ABOUTME: Channel-based async architecture with Ratatui
+
+[package]
+name = "coven-tui-v2"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Simplified terminal chat interface for coven agents"
+
+[lib]
+name = "coven_tui_v2"
+path = "src/lib.rs"
+
+[[bin]]
+name = "coven-chat"
+path = "src/main.rs"
+
+[dependencies]
+# TUI
+ratatui.workspace = true
+crossterm.workspace = true
+tui-textarea.workspace = true
+
+# Async
+tokio = { workspace = true, features = ["full", "sync", "macros", "rt-multi-thread"] }
+
+# Client
+coven-client.workspace = true
+coven-ssh.workspace = true
+
+# CLI
+clap.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Utils
+anyhow.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+tracing.workspace = true
