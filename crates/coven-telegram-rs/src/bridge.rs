@@ -329,6 +329,10 @@ impl Bridge {
                 Some(Payload::Event(_)) => {
                     debug!("Received full event (history replay)");
                 }
+                Some(Payload::ToolApproval(approval)) => {
+                    // Tool approval requests not supported in Telegram bridge
+                    debug!(tool_name = %approval.tool_name, "Tool approval request (auto-denied in Telegram)");
+                }
                 None => {
                     debug!("Received empty payload");
                 }

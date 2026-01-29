@@ -381,6 +381,10 @@ async fn process_message(
                 // Full event replay, typically for history - ignore in streaming context
                 debug!("Received full event (history replay)");
             }
+            Some(Payload::ToolApproval(approval)) => {
+                // Tool approval requests not supported in Matrix bridge
+                debug!(tool_name = %approval.tool_name, "Tool approval request (auto-denied in Matrix)");
+            }
             None => {
                 debug!("Received empty payload");
             }
