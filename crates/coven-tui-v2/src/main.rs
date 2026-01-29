@@ -79,14 +79,12 @@ fn ssh_key_path() -> Result<PathBuf> {
     Ok(home.join(".ssh").join("id_ed25519"))
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Handle subcommands
+    // Handle subcommands (these don't need the TUI)
     match args.command {
         Some(Command::Send { message, print: _ }) => {
-            // Load config for send command
             let config = load_config()?;
             coven_tui_v2::cli::send::run(&config, &message, args.agent.as_deref())?;
             return Ok(());
@@ -103,12 +101,21 @@ async fn main() -> Result<()> {
     // Load config
     let config = load_config()?;
 
-    // Run the application
-    run_app(config, args.agent).await
+    // Create client BEFORE entering tokio runtime
+    // (CovenClient creates its own runtime internally for FFI support)
+    let ssh_key = ssh_key_path()?;
+    let client = Client::new(&config.gateway_url, &ssh_key)?;
+
+    // Now run the async application with the pre-created client
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+
+    rt.block_on(run_app(config, args.agent, client))
 }
 
 /// Run the TUI application
-async fn run_app(config: Config, initial_agent: Option<String>) -> Result<()> {
+async fn run_app(config: Config, initial_agent: Option<String>, client: Client) -> Result<()> {
     // Set up terminal
     let mut terminal = setup_terminal()?;
 
@@ -120,7 +127,7 @@ async fn run_app(config: Config, initial_agent: Option<String>) -> Result<()> {
     }));
 
     // Run the main loop, capturing the result
-    let result = run_main_loop(&mut terminal, config, initial_agent).await;
+    let result = run_main_loop(&mut terminal, config, initial_agent, client).await;
 
     // Restore terminal (always, even on error)
     restore_terminal(&mut terminal)?;
@@ -131,17 +138,14 @@ async fn run_app(config: Config, initial_agent: Option<String>) -> Result<()> {
 /// The main event loop
 async fn run_main_loop(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-    config: Config,
+    _config: Config,
     initial_agent: Option<String>,
+    client: Client,
 ) -> Result<()> {
     // Create channels
     let (response_tx, mut response_rx) = mpsc::channel::<Response>(32);
     let (state_tx, mut state_rx) = mpsc::channel::<StateChange>(32);
     let (key_tx, mut key_rx) = mpsc::channel::<KeyEvent>(32);
-
-    // Create client
-    let ssh_key = ssh_key_path()?;
-    let client = Client::new(&config.gateway_url, &ssh_key)?;
 
     // Set up callbacks
     client.setup_callbacks(response_tx, state_tx);
