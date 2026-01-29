@@ -154,19 +154,6 @@ pub enum ApprovalDecision {
     ApproveAll,
 }
 
-/// Application configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
-    pub gateway_url: String,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            gateway_url: "http://localhost:7777".to_string(),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

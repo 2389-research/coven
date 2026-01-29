@@ -2,15 +2,14 @@
 // ABOUTME: Streams response text to stdout.
 
 use std::io::Write;
+use std::path::Path;
 use std::sync::mpsc;
 
 use anyhow::{Context, Result};
-use coven_client::{
-    ConnectionStatus, CovenClient, StateCallback, StreamCallback, StreamEvent,
-};
-use coven_ssh::default_client_key_path;
+use coven_client::{ConnectionStatus, CovenClient, StateCallback, StreamCallback, StreamEvent};
+use coven_link::config::CovenConfig;
 
-use crate::types::{Config, PersistedState};
+use crate::types::PersistedState;
 
 /// Bridge to receive stream events on a channel
 struct SendCallbackBridge {
@@ -35,22 +34,19 @@ impl StateCallback for NoOpStateCallback {
 }
 
 /// Run the send command
-pub fn run(config: &Config, message: &str, agent: Option<&str>) -> Result<()> {
-    // Get SSH key path
-    let key_path = default_client_key_path()
-        .context("Could not determine SSH key path (HOME not set?)")?;
-
+pub fn run(gateway_url: &str, key_path: &Path, message: &str, agent: Option<&str>) -> Result<()> {
     // Create client
-    let client = CovenClient::new_with_auth(config.gateway_url.clone(), &key_path)
+    let client = CovenClient::new_with_auth(gateway_url.to_string(), key_path)
         .map_err(|e| anyhow::anyhow!("Failed to initialize client: {}", e))?;
 
     // Determine agent to use
     let agent_name = if let Some(name) = agent {
         name.to_string()
     } else {
-        // Load last used agent from state
-        let state_path = dirs::config_dir()
-            .map(|d| d.join("coven-chat").join("state.json"));
+        // Load last used agent from state (stored in coven config dir)
+        let state_path = CovenConfig::config_dir()
+            .map(|d| d.join("tui").join("state.json"))
+            .ok();
 
         if let Some(path) = state_path {
             if let Ok(content) = std::fs::read_to_string(&path) {

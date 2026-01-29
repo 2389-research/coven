@@ -14,9 +14,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
+use coven_link::config::CovenConfig;
 use coven_tui_v2::app::{Action, App};
 use coven_tui_v2::client::{Client, Response, StateChange};
-use coven_tui_v2::types::Config;
 use coven_tui_v2::ui;
 
 /// Terminal chat interface for coven agents
@@ -42,41 +42,31 @@ enum Command {
         #[arg(short, long)]
         print: bool,
     },
-    /// First-time setup wizard
-    Setup,
 }
 
-/// Get the configuration directory path
-fn config_dir() -> Result<PathBuf> {
-    let dir = dirs::config_dir()
-        .context("Could not determine config directory")?
-        .join("coven-chat");
+/// Get the TUI state directory (for persisted state like last agent, input history)
+fn state_dir() -> Result<PathBuf> {
+    let dir = CovenConfig::config_dir()?.join("tui");
     Ok(dir)
 }
 
-/// Load configuration, creating default if missing
-fn load_config() -> Result<Config> {
-    let dir = config_dir()?;
-    let config_path = dir.join("config.toml");
+/// Get the gateway URL from coven config
+fn gateway_url() -> Result<String> {
+    let config = CovenConfig::load()
+        .context("No coven config found. Run 'coven link' first to set up gateway connection.")?;
 
-    if config_path.exists() {
-        let content = std::fs::read_to_string(&config_path)
-            .context("Failed to read config file")?;
-        toml::from_str(&content).context("Failed to parse config file")
+    // Normalize gateway address to URL
+    let gateway = &config.gateway;
+    if gateway.starts_with("http://") || gateway.starts_with("https://") {
+        Ok(gateway.clone())
     } else {
-        // Create default config
-        std::fs::create_dir_all(&dir).context("Failed to create config directory")?;
-        let config = Config::default();
-        let content = toml::to_string_pretty(&config).context("Failed to serialize config")?;
-        std::fs::write(&config_path, content).context("Failed to write default config")?;
-        Ok(config)
+        Ok(format!("http://{}", gateway))
     }
 }
 
-/// Get the SSH key path for authentication
+/// Get the SSH key path for authentication (use coven's device key)
 fn ssh_key_path() -> Result<PathBuf> {
-    let home = dirs::home_dir().context("Could not determine home directory")?;
-    Ok(home.join(".ssh").join("id_ed25519"))
+    CovenConfig::key_path()
 }
 
 fn main() -> Result<()> {
@@ -85,12 +75,9 @@ fn main() -> Result<()> {
     // Handle subcommands (these don't need the TUI)
     match args.command {
         Some(Command::Send { message, print: _ }) => {
-            let config = load_config()?;
-            coven_tui_v2::cli::send::run(&config, &message, args.agent.as_deref())?;
-            return Ok(());
-        }
-        Some(Command::Setup) => {
-            coven_tui_v2::cli::setup::run()?;
+            let gw_url = gateway_url()?;
+            let key_path = ssh_key_path()?;
+            coven_tui_v2::cli::send::run(&gw_url, &key_path, &message, args.agent.as_deref())?;
             return Ok(());
         }
         None => {
@@ -98,24 +85,26 @@ fn main() -> Result<()> {
         }
     }
 
-    // Load config
-    let config = load_config()?;
+    // Get gateway URL from shared coven config
+    let gw_url = gateway_url()?;
+    eprintln!("DEBUG: Gateway URL: {}", gw_url);
 
     // Create client BEFORE entering tokio runtime
     // (CovenClient creates its own runtime internally for FFI support)
-    let ssh_key = ssh_key_path()?;
-    let client = Client::new(&config.gateway_url, &ssh_key)?;
+    let key_path = ssh_key_path()?;
+    eprintln!("DEBUG: Key path: {:?}", key_path);
+    let client = Client::new(&gw_url, &key_path)?;
 
     // Now run the async application with the pre-created client
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
 
-    rt.block_on(run_app(config, args.agent, client))
+    rt.block_on(run_app(args.agent, client))
 }
 
 /// Run the TUI application
-async fn run_app(config: Config, initial_agent: Option<String>, client: Client) -> Result<()> {
+async fn run_app(initial_agent: Option<String>, client: Client) -> Result<()> {
     // Set up terminal
     let mut terminal = setup_terminal()?;
 
@@ -127,7 +116,7 @@ async fn run_app(config: Config, initial_agent: Option<String>, client: Client) 
     }));
 
     // Run the main loop, capturing the result
-    let result = run_main_loop(&mut terminal, config, initial_agent, client).await;
+    let result = run_main_loop(&mut terminal, initial_agent, client).await;
 
     // Restore terminal (always, even on error)
     restore_terminal(&mut terminal)?;
@@ -138,7 +127,6 @@ async fn run_app(config: Config, initial_agent: Option<String>, client: Client) 
 /// The main event loop
 async fn run_main_loop(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-    _config: Config,
     initial_agent: Option<String>,
     client: Client,
 ) -> Result<()> {
@@ -151,18 +139,25 @@ async fn run_main_loop(
     client.setup_callbacks(response_tx, state_tx);
 
     // Create app with persisted state
-    let config_dir = config_dir()?;
-    let mut app = App::load(&config_dir, initial_agent);
+    let state_dir = state_dir()?;
+    let mut app = App::load(&state_dir, initial_agent);
 
     // Initial connection status (use async version since we're in async context)
-    app.connected = client.check_health_async().await.is_ok();
+    let health_result = client.check_health_async().await;
+    app.connected = health_result.is_ok();
+    eprintln!("DEBUG: Health check result: {:?}", health_result);
 
     // Fetch initial agent list
     match client.list_agents().await {
         Ok(agents) => {
+            eprintln!("DEBUG: Got {} agents", agents.len());
+            for agent in &agents {
+                eprintln!("DEBUG:   - {} (id={}, connected={})", agent.name, agent.id, agent.connected);
+            }
             app.agents = agents;
         }
         Err(e) => {
+            eprintln!("DEBUG: Failed to load agents: {}", e);
             app.error = Some(format!("Failed to load agents: {}", e));
         }
     }
@@ -186,7 +181,7 @@ async fn run_main_loop(
                     match action {
                         Action::Quit => {
                             // Save state before quitting
-                            if let Err(e) = app.save(&config_dir) {
+                            if let Err(e) = app.save(&state_dir) {
                                 tracing::warn!("Failed to save state: {}", e);
                             }
                             break;

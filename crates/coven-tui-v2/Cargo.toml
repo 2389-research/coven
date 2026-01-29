@@ -28,6 +28,7 @@ tokio = { workspace = true, features = ["full", "sync", "macros", "rt-multi-thre
 
 # Client
 coven-client.workspace = true
+coven-link.workspace = true
 coven-ssh.workspace = true
 
 # CLI

@@ -1,5 +1,4 @@
 // ABOUTME: CLI subcommand implementations.
-// ABOUTME: Handles send and setup commands.
+// ABOUTME: Handles send command.
 
 pub mod send;
-pub mod setup;
