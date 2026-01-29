@@ -1,4 +1,4 @@
-# ABOUTME: Release workflow for building and publishing coven CLI binaries
+# ABOUTME: Release workflow for building and publishing coven CLI binaries and XCFramework
 # ABOUTME: Triggers on git tags, builds for macOS/Linux, publishes to GitHub Releases and Homebrew
 
 name: Release
@@ -98,9 +98,43 @@ jobs:
           name: coven-${{ matrix.target }}
           path: coven-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
 
+  xcframework:
+    name: Build XCFramework
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios,aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "25.x"
+
+      - name: Build XCFramework
+        run: ./scripts/build-xcframework.sh
+
+      - name: Create zip
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          zip -r "CovenClientFFI-${VERSION}.xcframework.zip" CovenClientFFI.xcframework
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcframework
+          path: CovenClientFFI-${{ github.ref_name }}.xcframework.zip
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, xcframework]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -118,7 +152,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: artifacts/**/*.tar.gz
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.xcframework.zip
 
   homebrew:
     name: Update Homebrew Formula
