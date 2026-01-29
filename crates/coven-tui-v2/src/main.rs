@@ -87,12 +87,10 @@ fn main() -> Result<()> {
 
     // Get gateway URL from shared coven config
     let gw_url = gateway_url()?;
-    eprintln!("DEBUG: Gateway URL: {}", gw_url);
 
     // Create client BEFORE entering tokio runtime
     // (CovenClient creates its own runtime internally for FFI support)
     let key_path = ssh_key_path()?;
-    eprintln!("DEBUG: Key path: {:?}", key_path);
     let client = Client::new(&gw_url, &key_path)?;
 
     // Now run the async application with the pre-created client
@@ -143,21 +141,14 @@ async fn run_main_loop(
     let mut app = App::load(&state_dir, initial_agent);
 
     // Initial connection status (use async version since we're in async context)
-    let health_result = client.check_health_async().await;
-    app.connected = health_result.is_ok();
-    eprintln!("DEBUG: Health check result: {:?}", health_result);
+    app.connected = client.check_health_async().await.is_ok();
 
     // Fetch initial agent list
     match client.list_agents().await {
         Ok(agents) => {
-            eprintln!("DEBUG: Got {} agents", agents.len());
-            for agent in &agents {
-                eprintln!("DEBUG:   - {} (id={}, connected={})", agent.name, agent.id, agent.connected);
-            }
             app.agents = agents;
         }
         Err(e) => {
-            eprintln!("DEBUG: Failed to load agents: {}", e);
             app.error = Some(format!("Failed to load agents: {}", e));
         }
     }
