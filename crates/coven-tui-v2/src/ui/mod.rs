@@ -1,6 +1,7 @@
 // ABOUTME: UI rendering module for coven-tui-v2
 // ABOUTME: Dispatches rendering to widget modules
 
+mod approval;
 mod chat;
 mod input;
 mod picker;
@@ -26,5 +27,10 @@ pub fn render(f: &mut Frame, app: &App) {
     // Picker is an overlay
     if app.mode == Mode::Picker {
         picker::render(f, app);
+    }
+
+    // Approval dialog is an overlay (shown on top of everything)
+    if app.has_pending_approvals() {
+        approval::render(f, app);
     }
 }

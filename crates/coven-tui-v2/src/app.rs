@@ -2,7 +2,10 @@
 // ABOUTME: Single struct holds all state, mutations happen in handle_* methods
 
 use crate::client::Response;
-use crate::types::*;
+use crate::types::{
+    Agent, Message, MessageTokens, Mode, PersistedState, PendingApproval, Role, SessionMetadata,
+    StreamingMessage, ToolStatus, ToolUse,
+};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -15,6 +18,12 @@ pub enum Action {
     Quit,
     SendMessage(String),
     RefreshAgents,
+    /// Approve the currently selected tool approval request
+    ApproveSelected,
+    /// Deny the currently selected tool approval request
+    DenySelected,
+    /// Approve all future uses of this tool from this agent
+    ApproveAllSelected,
 }
 
 /// Central application state
@@ -52,6 +61,10 @@ pub struct App {
 
     // Throbber animation frame
     pub throbber_frame: usize,
+
+    // Tool approval state
+    pub pending_approvals: Vec<crate::types::PendingApproval>,
+    pub selected_approval: Option<usize>,
 }
 
 impl App {
@@ -77,6 +90,8 @@ impl App {
             error: None,
             last_ctrl_c: None,
             throbber_frame: 0,
+            pending_approvals: vec![],
+            selected_approval: None,
         }
     }
 
@@ -158,6 +173,13 @@ impl App {
                 return None;
             }
             _ => {}
+        }
+
+        // If there are pending approvals, handle approval keys first
+        if !self.pending_approvals.is_empty() {
+            if let Some(action) = self.handle_approval_key(key) {
+                return Some(action);
+            }
         }
 
         match self.mode {
@@ -346,6 +368,27 @@ impl App {
                 self.streaming = None;
                 self.mode = Mode::Chat;
             }
+            Response::ToolApprovalRequest {
+                agent_id,
+                request_id,
+                tool_id,
+                tool_name,
+                input_json,
+            } => {
+                let approval = PendingApproval {
+                    agent_id,
+                    request_id,
+                    tool_id,
+                    tool_name,
+                    input_json,
+                    timestamp: chrono::Utc::now(),
+                };
+                self.pending_approvals.push(approval);
+                // Select the first approval if none selected
+                if self.selected_approval.is_none() {
+                    self.selected_approval = Some(0);
+                }
+            }
         }
     }
 
@@ -354,6 +397,67 @@ impl App {
         self.last_ctrl_c
             .map(|t| t.elapsed() < Duration::from_millis(500))
             .unwrap_or(false)
+    }
+
+    /// Handle key events when approval dialog is shown
+    fn handle_approval_key(&mut self, key: KeyEvent) -> Option<Action> {
+        match key.code {
+            // Approve selected
+            KeyCode::Char('y') | KeyCode::Enter => {
+                return Some(Action::ApproveSelected);
+            }
+            // Deny selected
+            KeyCode::Char('n') | KeyCode::Esc => {
+                return Some(Action::DenySelected);
+            }
+            // Approve all from this agent
+            KeyCode::Char('a') => {
+                return Some(Action::ApproveAllSelected);
+            }
+            // Navigate between approvals
+            KeyCode::Up => {
+                if let Some(idx) = self.selected_approval {
+                    self.selected_approval = Some(idx.saturating_sub(1));
+                }
+            }
+            KeyCode::Down => {
+                if let Some(idx) = self.selected_approval {
+                    let max = self.pending_approvals.len().saturating_sub(1);
+                    self.selected_approval = Some((idx + 1).min(max));
+                }
+            }
+            _ => {}
+        }
+        None
+    }
+
+    /// Get the currently selected pending approval
+    pub fn get_selected_approval(&self) -> Option<&PendingApproval> {
+        self.selected_approval
+            .and_then(|idx| self.pending_approvals.get(idx))
+    }
+
+    /// Remove an approval from the pending list by tool_id and update selection
+    pub fn remove_approval(&mut self, tool_id: &str) {
+        if let Some(pos) = self
+            .pending_approvals
+            .iter()
+            .position(|a| a.tool_id == tool_id)
+        {
+            self.pending_approvals.remove(pos);
+            // Update selection
+            if self.pending_approvals.is_empty() {
+                self.selected_approval = None;
+            } else if let Some(idx) = self.selected_approval {
+                // Keep within bounds
+                self.selected_approval = Some(idx.min(self.pending_approvals.len() - 1));
+            }
+        }
+    }
+
+    /// Check if there are pending approvals
+    pub fn has_pending_approvals(&self) -> bool {
+        !self.pending_approvals.is_empty()
     }
 }
 

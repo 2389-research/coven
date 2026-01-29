@@ -18,6 +18,13 @@ pub enum Response {
     ToolError(String, String),
     Usage { input: u32, output: u32 },
     WorkingDir(String),
+    ToolApprovalRequest {
+        agent_id: String,
+        request_id: String,
+        tool_id: String,
+        tool_name: String,
+        input_json: String,
+    },
     Done,
     Error(String),
 }
@@ -51,6 +58,19 @@ impl StreamCallback for CallbackBridge {
                     _ => return,
                 }
             }
+            StreamEvent::ToolApprovalRequest {
+                agent_id,
+                request_id,
+                tool_id,
+                tool_name,
+                input_json,
+            } => Response::ToolApprovalRequest {
+                agent_id,
+                request_id,
+                tool_id,
+                tool_name,
+                input_json,
+            },
             StreamEvent::Usage { info } => Response::Usage {
                 input: info.input_tokens as u32,
                 output: info.output_tokens as u32,
@@ -143,6 +163,25 @@ impl Client {
         self.inner
             .check_health()
             .map_err(|e| anyhow!("Health check failed: {}", e))
+    }
+
+    /// Respond to a tool approval request (async version for tokio context)
+    pub async fn approve_tool_async(
+        &self,
+        agent_id: &str,
+        tool_id: &str,
+        approved: bool,
+        approve_all: bool,
+    ) -> Result<()> {
+        self.inner
+            .approve_tool_async(
+                agent_id.to_string(),
+                tool_id.to_string(),
+                approved,
+                approve_all,
+            )
+            .await
+            .map_err(|e| anyhow!("Failed to approve tool: {}", e))
     }
 }
 

@@ -132,6 +132,28 @@ pub struct PersistedState {
     pub input_history: Vec<String>,
 }
 
+/// A pending tool approval request from an agent
+#[derive(Debug, Clone)]
+pub struct PendingApproval {
+    pub agent_id: String,
+    pub request_id: String,
+    pub tool_id: String,
+    pub tool_name: String,
+    pub input_json: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Decision for a tool approval request
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApprovalDecision {
+    /// Approve this single tool use
+    Approve,
+    /// Deny this tool use
+    Deny,
+    /// Approve all future uses of this tool from this agent
+    ApproveAll,
+}
+
 /// Application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -176,5 +198,28 @@ mod tests {
         assert!(sm.content.is_empty());
         assert!(sm.thinking.is_none());
         assert!(sm.tool_uses.is_empty());
+    }
+
+    #[test]
+    fn test_pending_approval() {
+        let approval = PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: r#"{"command": "ls"}"#.to_string(),
+            timestamp: Utc::now(),
+        };
+        assert_eq!(approval.agent_id, "agent-1");
+        assert_eq!(approval.tool_name, "bash");
+    }
+
+    #[test]
+    fn test_approval_decision_equality() {
+        assert_eq!(ApprovalDecision::Approve, ApprovalDecision::Approve);
+        assert_eq!(ApprovalDecision::Deny, ApprovalDecision::Deny);
+        assert_eq!(ApprovalDecision::ApproveAll, ApprovalDecision::ApproveAll);
+        assert_ne!(ApprovalDecision::Approve, ApprovalDecision::Deny);
+        assert_ne!(ApprovalDecision::Approve, ApprovalDecision::ApproveAll);
     }
 }
