@@ -208,7 +208,7 @@ pub async fn run_supervisor(options: SupervisorOptions) -> Result<()> {
                     },
                 );
                 let agent_statuses: Vec<AgentStatus> = agents
-                    .iter_mut()
+                    .iter()
                     .map(|(name, agent)| AgentStatus {
                         workspace: name.clone(),
                         pid: agent.pid(),
@@ -239,8 +239,8 @@ pub async fn run_supervisor(options: SupervisorOptions) -> Result<()> {
                     }
                 }
                 let _ = reply.send(());
-                // Exit the supervisor
-                std::process::exit(0);
+                // Exit the supervisor loop
+                break;
             }
         }
     }
@@ -250,11 +250,12 @@ pub async fn run_supervisor(options: SupervisorOptions) -> Result<()> {
 
 /// Run a swarm agent (internal, spawned by supervisor)
 pub async fn run_agent(options: AgentOptions) -> Result<()> {
-    use coven_core::backend::{MuxBackend, MuxConfig};
+    use coven_core::backend::{DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig};
     use coven_swarm_backend::dispatch_tools::{
         CreateWorkspaceTool, DeleteWorkspaceTool, ListAgentsTool,
     };
     use coven_swarm_backend::BackendHandle;
+    use coven_swarm_core::BackendType;
 
     // Load or generate SSH key
     let key_path = coven_ssh::default_swarm_key_path()
@@ -309,37 +310,72 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
         let name = handle.name();
         (handle, name)
     } else {
-        // Normal workspace uses ACP backend
-        #[cfg(feature = "acp")]
-        {
-            use coven_swarm_backend::acp::{AcpBackend, AcpConfig};
-            let acp_config = AcpConfig {
-                binary: config.acp_binary.clone(),
-                timeout_secs: 300,
-                working_dir: working_dir.clone(),
-                extra_args: vec![],
-            };
-            let backend = AcpBackend::new(acp_config);
-            let handle = BackendHandle::new(backend);
-            let name = handle.name();
-            (handle, name)
-        }
-        #[cfg(not(feature = "acp"))]
-        {
-            // Fallback to coven-core's MuxBackend when ACP is not available
-            let mux_config = MuxConfig {
-                model: "claude-sonnet-4-20250514".to_string(),
-                max_tokens: 8192,
-                working_dir: working_dir.clone(),
-                global_system_prompt_path: None,
-                local_prompt_files: vec!["claude.md".to_string(), "CLAUDE.md".to_string()],
-                skip_default_tools: false,
-                ..MuxConfig::default()
-            };
-            let backend = MuxBackend::new(mux_config).await?;
-            let handle = BackendHandle::new(backend);
-            let name = handle.name();
-            (handle, name)
+        // Normal workspace - use backend from config
+        match config.default_backend {
+            BackendType::Direct => {
+                // DirectCliBackend spawns Claude CLI subprocess
+                let cli_config = DirectCliConfig {
+                    binary: config.acp_binary.clone(), // reuse acp_binary setting
+                    working_dir: working_dir.clone(),
+                    timeout_secs: 300,
+                    mcp_endpoint: None,
+                };
+                let backend = DirectCliBackend::new(cli_config);
+                let handle = BackendHandle::new(backend);
+                let name = handle.name();
+                (handle, name)
+            }
+            BackendType::Mux => {
+                // MuxBackend uses Anthropic API directly
+                let mux_config = MuxConfig {
+                    model: "claude-sonnet-4-20250514".to_string(),
+                    max_tokens: 8192,
+                    working_dir: working_dir.clone(),
+                    global_system_prompt_path: None,
+                    local_prompt_files: vec!["claude.md".to_string(), "CLAUDE.md".to_string()],
+                    skip_default_tools: false,
+                    ..MuxConfig::default()
+                };
+                let backend = MuxBackend::new(mux_config).await?;
+                let handle = BackendHandle::new(backend);
+                let name = handle.name();
+                (handle, name)
+            }
+            BackendType::Acp => {
+                // AcpBackend uses Claude's Agent Computer Protocol
+                #[cfg(feature = "acp")]
+                {
+                    use coven_swarm_backend::acp::{AcpBackend, AcpConfig};
+                    let acp_config = AcpConfig {
+                        binary: config.acp_binary.clone(),
+                        timeout_secs: 300,
+                        working_dir: working_dir.clone(),
+                        extra_args: vec![],
+                    };
+                    let backend = AcpBackend::new(acp_config);
+                    let handle = BackendHandle::new(backend);
+                    let name = handle.name();
+                    (handle, name)
+                }
+                #[cfg(not(feature = "acp"))]
+                {
+                    // Fallback to MuxBackend when ACP feature is not enabled
+                    tracing::warn!("ACP backend requested but feature not enabled, falling back to Mux");
+                    let mux_config = MuxConfig {
+                        model: "claude-sonnet-4-20250514".to_string(),
+                        max_tokens: 8192,
+                        working_dir: working_dir.clone(),
+                        global_system_prompt_path: None,
+                        local_prompt_files: vec!["claude.md".to_string(), "CLAUDE.md".to_string()],
+                        skip_default_tools: false,
+                        ..MuxConfig::default()
+                    };
+                    let backend = MuxBackend::new(mux_config).await?;
+                    let handle = BackendHandle::new(backend);
+                    let name = handle.name();
+                    (handle, name)
+                }
+            }
         }
     };
 
