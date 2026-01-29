@@ -372,6 +372,23 @@ service ClientService {
 
   // Register a client (members can self-register clients like TUI)
   rpc RegisterClient(RegisterClientRequest) returns (RegisterClientResponse);
+
+  // Respond to a tool approval request
+  rpc ApproveTool(ApproveToolRequest) returns (ApproveToolResponse);
+}
+
+// Request to approve or deny a tool execution
+message ApproveToolRequest {
+  string agent_id = 1;        // Which agent's tool to approve
+  string tool_id = 2;         // Correlates with ClientToolApprovalRequest.tool_id
+  bool approved = 3;          // True = execute, False = skip
+  bool approve_all = 4;       // If true, auto-approve remaining tools this request
+}
+
+// Response to tool approval
+message ApproveToolResponse {
+  bool success = 1;           // Whether the approval was processed
+  optional string error = 2;  // Error message if not successful
 }
 
 // Request to stream events for a conversation
@@ -402,7 +419,19 @@ message ClientStreamEvent {
 
     // Full message (for history replay)
     Event event = 11;
+
+    // Tool approval request (needs human decision)
+    ClientToolApprovalRequest tool_approval = 12;
   }
+}
+
+// Tool approval request sent to clients (wraps ToolApprovalRequest with agent context)
+message ClientToolApprovalRequest {
+  string agent_id = 1;        // Which agent is requesting approval
+  string request_id = 2;      // Correlates with the message request
+  string tool_id = 3;         // Correlates with ToolUse.id
+  string tool_name = 4;       // Tool name for display
+  string input_json = 5;      // Tool input for display
 }
 
 // Incremental text chunk
