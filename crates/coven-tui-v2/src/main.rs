@@ -206,6 +206,66 @@ async fn run_main_loop(
                                 }
                             }
                         }
+                        Action::ApproveSelected => {
+                            if let Some(approval) = app.get_selected_approval().cloned() {
+                                match client
+                                    .approve_tool_async(
+                                        &approval.agent_id,
+                                        &approval.tool_id,
+                                        true,
+                                        false,
+                                    )
+                                    .await
+                                {
+                                    Ok(()) => {
+                                        app.remove_approval(&approval.tool_id);
+                                    }
+                                    Err(e) => {
+                                        app.error = Some(format!("Failed to approve: {}", e));
+                                    }
+                                }
+                            }
+                        }
+                        Action::DenySelected => {
+                            if let Some(approval) = app.get_selected_approval().cloned() {
+                                match client
+                                    .approve_tool_async(
+                                        &approval.agent_id,
+                                        &approval.tool_id,
+                                        false,
+                                        false,
+                                    )
+                                    .await
+                                {
+                                    Ok(()) => {
+                                        app.remove_approval(&approval.tool_id);
+                                    }
+                                    Err(e) => {
+                                        app.error = Some(format!("Failed to deny: {}", e));
+                                    }
+                                }
+                            }
+                        }
+                        Action::ApproveAllSelected => {
+                            if let Some(approval) = app.get_selected_approval().cloned() {
+                                match client
+                                    .approve_tool_async(
+                                        &approval.agent_id,
+                                        &approval.tool_id,
+                                        true,
+                                        true,
+                                    )
+                                    .await
+                                {
+                                    Ok(()) => {
+                                        app.remove_approval(&approval.tool_id);
+                                    }
+                                    Err(e) => {
+                                        app.error = Some(format!("Failed to approve all: {}", e));
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

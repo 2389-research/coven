@@ -3,8 +3,8 @@
 
 use crate::client::Response;
 use crate::types::{
-    Agent, Message, MessageTokens, Mode, PersistedState, PendingApproval, Role, SessionMetadata,
-    StreamingMessage, ToolStatus, ToolUse,
+    Agent, Message, Mode, PersistedState, PendingApproval, Role, SessionMetadata, StreamingMessage,
+    ToolStatus, ToolUse,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::path::Path;
@@ -541,5 +541,186 @@ mod tests {
         let filtered = app.filtered_agents();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].name, "Claude");
+    }
+
+    #[test]
+    fn test_handle_response_tool_approval_request() {
+        let mut app = App::new(None);
+        assert!(app.pending_approvals.is_empty());
+        assert!(app.selected_approval.is_none());
+
+        app.handle_response(Response::ToolApprovalRequest {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: r#"{"command": "ls"}"#.to_string(),
+        });
+
+        assert_eq!(app.pending_approvals.len(), 1);
+        assert_eq!(app.selected_approval, Some(0));
+        assert_eq!(app.pending_approvals[0].tool_name, "bash");
+    }
+
+    #[test]
+    fn test_get_selected_approval() {
+        let mut app = App::new(None);
+        assert!(app.get_selected_approval().is_none());
+
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        app.selected_approval = Some(0);
+
+        let approval = app.get_selected_approval();
+        assert!(approval.is_some());
+        assert_eq!(approval.unwrap().tool_name, "bash");
+    }
+
+    #[test]
+    fn test_remove_approval() {
+        let mut app = App::new(None);
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-2".to_string(),
+            tool_id: "tool-2".to_string(),
+            tool_name: "read".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        app.selected_approval = Some(1);
+
+        // Remove the second one (selected)
+        app.remove_approval("tool-2");
+        assert_eq!(app.pending_approvals.len(), 1);
+        assert_eq!(app.selected_approval, Some(0));
+
+        // Remove the last one
+        app.remove_approval("tool-1");
+        assert!(app.pending_approvals.is_empty());
+        assert!(app.selected_approval.is_none());
+    }
+
+    #[test]
+    fn test_has_pending_approvals() {
+        let mut app = App::new(None);
+        assert!(!app.has_pending_approvals());
+
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        assert!(app.has_pending_approvals());
+    }
+
+    #[test]
+    fn test_handle_approval_key_approve() {
+        let mut app = App::new(None);
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        app.selected_approval = Some(0);
+
+        let key = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
+        let action = app.handle_approval_key(key);
+        assert!(matches!(action, Some(Action::ApproveSelected)));
+    }
+
+    #[test]
+    fn test_handle_approval_key_deny() {
+        let mut app = App::new(None);
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        app.selected_approval = Some(0);
+
+        let key = KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE);
+        let action = app.handle_approval_key(key);
+        assert!(matches!(action, Some(Action::DenySelected)));
+    }
+
+    #[test]
+    fn test_handle_approval_key_approve_all() {
+        let mut app = App::new(None);
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        app.selected_approval = Some(0);
+
+        let key = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
+        let action = app.handle_approval_key(key);
+        assert!(matches!(action, Some(Action::ApproveAllSelected)));
+    }
+
+    #[test]
+    fn test_handle_approval_key_navigation() {
+        let mut app = App::new(None);
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        app.pending_approvals.push(PendingApproval {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-2".to_string(),
+            tool_id: "tool-2".to_string(),
+            tool_name: "read".to_string(),
+            input_json: "{}".to_string(),
+            timestamp: chrono::Utc::now(),
+        });
+        app.selected_approval = Some(0);
+
+        // Navigate down
+        let key = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
+        app.handle_approval_key(key);
+        assert_eq!(app.selected_approval, Some(1));
+
+        // Navigate down at end (should stay at max)
+        app.handle_approval_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.selected_approval, Some(1));
+
+        // Navigate up
+        let key = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
+        app.handle_approval_key(key);
+        assert_eq!(app.selected_approval, Some(0));
+
+        // Navigate up at start (should stay at 0)
+        app.handle_approval_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.selected_approval, Some(0));
     }
 }
