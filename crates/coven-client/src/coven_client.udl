@@ -39,6 +39,7 @@ interface StreamEvent {
     ToolUse(string name, string input);
     ToolResult(string tool_id, string result);
     ToolState(string state, string detail);
+    ToolApprovalRequest(string agent_id, string request_id, string tool_id, string tool_name, string input_json);
     Usage(UsageInfo info);
     Done();
     Error(string message);
@@ -128,4 +129,8 @@ interface CovenClient {
 
     // Session Stats
     UsageInfo get_session_usage();
+
+    // Tool Approval
+    [Throws=CovenError]
+    void approve_tool(string agent_id, string tool_id, boolean approved, boolean approve_all);
 };

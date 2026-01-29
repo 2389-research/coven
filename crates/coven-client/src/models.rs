@@ -126,6 +126,13 @@ pub enum StreamEvent {
     ToolUse { name: String, input: String },
     ToolResult { tool_id: String, result: String },
     ToolState { state: String, detail: String },
+    ToolApprovalRequest {
+        agent_id: String,
+        request_id: String,
+        tool_id: String,
+        tool_name: String,
+        input_json: String,
+    },
     Usage { info: UsageInfo },
     Done,
     Error { message: String },
@@ -407,6 +414,13 @@ mod tests {
             state: "running".to_string(),
             detail: "50%".to_string(),
         };
+        let tool_approval = StreamEvent::ToolApprovalRequest {
+            agent_id: "agent-1".to_string(),
+            request_id: "req-1".to_string(),
+            tool_id: "tool-1".to_string(),
+            tool_name: "bash".to_string(),
+            input_json: r#"{"command": "ls"}"#.to_string(),
+        };
         let usage = StreamEvent::Usage {
             info: UsageInfo::default(),
         };
@@ -421,6 +435,7 @@ mod tests {
         assert!(format!("{:?}", tool_use).contains("ToolUse"));
         assert!(format!("{:?}", tool_result).contains("ToolResult"));
         assert!(format!("{:?}", tool_state).contains("ToolState"));
+        assert!(format!("{:?}", tool_approval).contains("ToolApprovalRequest"));
         assert!(format!("{:?}", usage).contains("Usage"));
         assert!(format!("{:?}", done).contains("Done"));
         assert!(format!("{:?}", error).contains("Error"));

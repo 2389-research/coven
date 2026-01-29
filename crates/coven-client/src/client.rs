@@ -7,8 +7,8 @@ use crate::{StateCallback, StreamCallback};
 use coven_grpc::{create_channel, ChannelConfig};
 use coven_proto::client::ClientServiceClient;
 use coven_proto::{
-    client_stream_event, ClientSendMessageRequest, ClientStreamEvent, GetEventsRequest,
-    ListAgentsRequest, StreamEventsRequest,
+    client_stream_event, ApproveToolRequest, ClientSendMessageRequest, ClientStreamEvent,
+    GetEventsRequest, ListAgentsRequest, StreamEventsRequest,
 };
 use coven_ssh::{load_or_generate_key, PrivateKey, SshAuthCredentials};
 use futures::StreamExt;
@@ -590,6 +590,66 @@ impl CovenClient {
     }
 
     // =========================================================================
+    // Tool Approval
+    // =========================================================================
+
+    /// Respond to a tool approval request
+    pub fn approve_tool(
+        &self,
+        agent_id: String,
+        tool_id: String,
+        approved: bool,
+        approve_all: bool,
+    ) -> Result<(), CovenError> {
+        self.runtime()
+            .block_on(self.approve_tool_async(agent_id, tool_id, approved, approve_all))
+    }
+
+    /// Async implementation of approve_tool - use this from async contexts
+    pub async fn approve_tool_async(
+        &self,
+        agent_id: String,
+        tool_id: String,
+        approved: bool,
+        approve_all: bool,
+    ) -> Result<(), CovenError> {
+        let channel = self.create_channel_internal().await?;
+
+        let request = ApproveToolRequest {
+            agent_id,
+            tool_id,
+            approved,
+            approve_all,
+        };
+
+        let response = if let Some(ref key) = self.ssh_key {
+            let mut client = ClientServiceClient::with_interceptor(
+                channel,
+                Self::make_ssh_interceptor(key.clone()),
+            );
+            client
+                .approve_tool(request)
+                .await
+                .map_err(|e| CovenError::Api(e.to_string()))?
+        } else {
+            let mut client = ClientServiceClient::new(channel);
+            client
+                .approve_tool(request)
+                .await
+                .map_err(|e| CovenError::Api(e.to_string()))?
+        };
+
+        let inner = response.into_inner();
+        if inner.success {
+            Ok(())
+        } else {
+            Err(CovenError::Api(
+                inner.error.unwrap_or_else(|| "unknown error".to_string()),
+            ))
+        }
+    }
+
+    // =========================================================================
     // Internal Streaming Implementation
     // =========================================================================
 
@@ -855,6 +915,15 @@ impl CovenClient {
             Some(client_stream_event::Payload::Event(_ledger_event)) => {
                 // Full event from history replay - skip for now
                 return (false, false);
+            }
+            Some(client_stream_event::Payload::ToolApproval(approval)) => {
+                StreamEvent::ToolApprovalRequest {
+                    agent_id: approval.agent_id,
+                    request_id: approval.request_id,
+                    tool_id: approval.tool_id,
+                    tool_name: approval.tool_name,
+                    input_json: approval.input_json,
+                }
             }
             None => return (false, false),
         };
