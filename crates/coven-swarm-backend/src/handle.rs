@@ -19,6 +19,11 @@ impl BackendHandle {
         }
     }
 
+    /// Create from an existing Arc'd backend (allows keeping a reference to concrete type)
+    pub fn new_from_arc<B: Backend + 'static>(backend: Arc<B>) -> Self {
+        Self { backend }
+    }
+
     pub fn name(&self) -> &'static str {
         self.backend.name()
     }

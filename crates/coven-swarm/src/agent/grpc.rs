@@ -11,7 +11,9 @@ use tonic::transport::Channel;
 pub use coven_proto::coven;
 
 use coven_proto::client::CovenControlClient;
-use coven_proto::{AgentMessage, AgentMetadata, RegisterAgent};
+use coven_proto::{AgentMessage, AgentMetadata, RegisterAgent, ToolDefinition};
+
+use super::pack_tool::{handle_pack_tool_result, PendingPackTools};
 
 /// Load auth token from ~/.config/coven/token
 fn load_token() -> Result<String> {
@@ -50,6 +52,35 @@ impl Interceptor for AuthInterceptor {
 /// Sender for streaming responses back to the gateway in real-time.
 /// Clone this and use it to send responses as they arrive from the backend.
 pub type ResponseSender = mpsc::Sender<coven::MessageResponse>;
+
+/// Information extracted from Welcome message for configuring pack tools
+#[derive(Debug, Clone)]
+pub struct WelcomeInfo {
+    pub agent_id: String,
+    pub instance_id: String,
+    pub mcp_endpoint: String,
+    pub mcp_token: String,
+    pub available_tools: Vec<ToolDefinition>,
+}
+
+impl WelcomeInfo {
+    /// Build the full MCP URL with token for direct-cli backends
+    pub fn mcp_url(&self) -> Option<String> {
+        if self.mcp_endpoint.is_empty() || self.mcp_token.is_empty() {
+            return None;
+        }
+        // Build URL: endpoint?token=xxx or endpoint&token=xxx if already has query params
+        let separator = if self.mcp_endpoint.contains('?') {
+            '&'
+        } else {
+            '?'
+        };
+        Some(format!(
+            "{}{}token={}",
+            self.mcp_endpoint, separator, self.mcp_token
+        ))
+    }
+}
 
 pub fn format_agent_id(prefix: &str, workspace: &str) -> String {
     format!("{}_{}", prefix, workspace)
@@ -99,10 +130,37 @@ impl GatewayClient {
     ///
     /// The handler receives messages and a ResponseSender to stream responses
     /// back to the gateway in real-time (not batched).
-    pub async fn run<F, Fut>(mut self, mut message_handler: F) -> Result<()>
+    ///
+    /// For pack tool support, use `run_with_pack_tools()` instead.
+    pub async fn run<F, Fut>(self, message_handler: F) -> Result<()>
     where
         F: FnMut(coven::SendMessage, ResponseSender) -> Fut,
         Fut: std::future::Future<Output = Result<()>>,
+    {
+        // Run without pack tool support
+        self.run_with_pack_tools(message_handler, None, |_, _| {})
+            .await
+    }
+
+    /// Run the agent with pack tool support.
+    ///
+    /// - `message_handler`: Handles incoming messages
+    /// - `pending_pack_tools`: Optional pending pack tools registry for gRPC-routed pack tools (mux backend)
+    /// - `on_welcome`: Callback with Welcome info for configuring backends (e.g., setting MCP endpoint)
+    ///
+    /// The `on_welcome` callback receives WelcomeInfo and a sender for ExecutePackTool messages.
+    /// For direct-cli backends, use WelcomeInfo::mcp_url() to configure the backend.
+    /// For mux backends, register PackTool instances using the provided sender.
+    pub async fn run_with_pack_tools<F, Fut, W>(
+        mut self,
+        mut message_handler: F,
+        pending_pack_tools: Option<PendingPackTools>,
+        on_welcome: W,
+    ) -> Result<()>
+    where
+        F: FnMut(coven::SendMessage, ResponseSender) -> Fut,
+        Fut: std::future::Future<Output = Result<()>>,
+        W: FnOnce(WelcomeInfo, mpsc::Sender<AgentMessage>),
     {
         let (tx, rx) = mpsc::channel::<AgentMessage>(32);
         let outbound = tokio_stream::wrappers::ReceiverStream::new(rx);
@@ -115,7 +173,7 @@ impl GatewayClient {
             payload: Some(coven::agent_message::Payload::Register(RegisterAgent {
                 agent_id: self.agent_id.clone(),
                 name: self.workspace.clone(),
-                capabilities: vec!["prompt".to_string()],
+                capabilities: vec!["base".to_string(), "chat".to_string()],
                 metadata: Some(AgentMetadata {
                     working_directory: self.working_dir.clone(),
                     git: None,
@@ -124,7 +182,7 @@ impl GatewayClient {
                     workspaces: vec![],
                     backend: self.backend.clone(),
                 }),
-                protocol_features: vec![],
+                protocol_features: vec!["pack_tools".to_string()],
             })),
         };
         tx.send(register).await?;
@@ -147,16 +205,42 @@ impl GatewayClient {
             }
         });
 
+        // Wrap on_welcome in Option so we can take() it (FnOnce can only be called once)
+        let mut on_welcome = Some(on_welcome);
+
         while let Some(msg) = inbound.message().await? {
             match msg.payload {
                 Some(coven::server_message::Payload::Welcome(welcome)) => {
                     tracing::info!(
                         agent_id = %welcome.agent_id,
                         instance_id = %welcome.instance_id,
+                        mcp_endpoint = %welcome.mcp_endpoint,
+                        tool_count = welcome.available_tools.len(),
                         "Registered with coven-gateway"
                     );
+
+                    // Extract welcome info and call setup callback (only once)
+                    if let Some(callback) = on_welcome.take() {
+                        let welcome_info = WelcomeInfo {
+                            agent_id: welcome.agent_id,
+                            instance_id: welcome.instance_id,
+                            mcp_endpoint: welcome.mcp_endpoint,
+                            mcp_token: welcome.mcp_token,
+                            available_tools: welcome.available_tools,
+                        };
+
+                        callback(welcome_info, tx.clone());
+                    } else {
+                        tracing::warn!("Received duplicate Welcome message - ignoring");
+                    }
                 }
                 Some(coven::server_message::Payload::SendMessage(send_msg)) => {
+                    // Check if Welcome has been processed (on_welcome taken = None)
+                    if on_welcome.is_some() {
+                        tracing::warn!("Received message before Welcome - ignoring");
+                        continue;
+                    }
+
                     let request_id = send_msg.request_id.clone();
                     tracing::info!(request_id = %request_id, "Received message");
 
@@ -188,8 +272,28 @@ impl GatewayClient {
                     tracing::error!(error = %err.reason, "Registration failed");
                     break;
                 }
-                Some(coven::server_message::Payload::PackToolResult(_)) => {
-                    // Pack tool results are not handled by swarm agents
+                Some(coven::server_message::Payload::PackToolResult(result)) => {
+                    // Route pack tool result to waiting caller
+                    if let Some(ref pending) = pending_pack_tools {
+                        let status = match &result.result {
+                            Some(coven_proto::pack_tool_result::Result::OutputJson(_)) => {
+                                "✓ success"
+                            }
+                            Some(coven_proto::pack_tool_result::Result::Error(_)) => "✗ error",
+                            None => "? empty",
+                        };
+                        tracing::debug!(
+                            request_id = %result.request_id,
+                            status = %status,
+                            "← Pack tool result"
+                        );
+
+                        if !handle_pack_tool_result(pending, result).await {
+                            tracing::warn!("Pack tool result for unknown request");
+                        }
+                    } else {
+                        tracing::debug!("Pack tool result received but no handler registered");
+                    }
                 }
                 None => {}
             }

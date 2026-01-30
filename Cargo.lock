@@ -1258,6 +1258,7 @@ name = "coven-swarm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "coven-core",
  "coven-link",
@@ -1270,6 +1271,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "hostname 0.4.2",
+ "mux",
  "prost",
  "rand 0.8.5",
  "ratatui",

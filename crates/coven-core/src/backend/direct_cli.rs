@@ -159,9 +159,10 @@ impl Backend for DirectCliBackend {
 
 /// Spawn the Claude CLI process with appropriate arguments.
 ///
-/// Uses default MCP discovery (plugins from ~/.claude). Testing shows that
-/// --strict-mcp-config with empty config causes hangs in some environments,
-/// while normal MCP discovery works fine with piped stdout.
+/// When an MCP endpoint is provided (gateway pack tools), it's passed via --mcp-config
+/// which adds the server while preserving default MCP discovery from ~/.claude.
+/// Note: --strict-mcp-config disables all other discovery and causes hangs in some
+/// environments, so we use --mcp-config instead.
 async fn spawn_cli_process(
     config: &DirectCliConfig,
     session_id: &str,
@@ -169,23 +170,32 @@ async fn spawn_cli_process(
     is_new_session: bool,
     mcp_endpoint: Option<&str>,
 ) -> Result<Child> {
-    // Log MCP endpoint if provided (for future use when we can configure it)
-    if let Some(endpoint) = mcp_endpoint {
-        tracing::debug!(
-            endpoint = %endpoint,
-            "MCP endpoint available (using default MCP discovery)"
-        );
-    }
-
     let mut args = vec![
         "--print".to_string(),
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--verbose".to_string(),
         "--dangerously-skip-permissions".to_string(),
-        // Use default MCP discovery - plugins from ~/.claude work fine
-        // Do NOT use --strict-mcp-config as it causes hangs in some environments
     ];
+
+    // Add gateway MCP server if endpoint provided (enables pack tools like log_entry, todo_*, bbs_*)
+    // Uses --mcp-config to ADD the server while preserving default MCP discovery
+    if let Some(endpoint) = mcp_endpoint {
+        let mcp_config = serde_json::json!({
+            "mcpServers": {
+                "coven-gateway": {
+                    "url": endpoint
+                }
+            }
+        });
+        let mcp_config_str = mcp_config.to_string();
+        tracing::info!(
+            endpoint = %endpoint,
+            "Adding gateway MCP server for pack tools"
+        );
+        args.push("--mcp-config".to_string());
+        args.push(mcp_config_str);
+    }
 
     // Only use --resume for existing sessions, not new ones
     if !is_new_session {

@@ -30,6 +30,10 @@ coven-link.workspace = true
 coven-ssh.workspace = true
 coven-proto.workspace = true
 
+# For pack tool implementation
+mux.workspace = true
+async-trait.workspace = true
+
 tokio.workspace = true
 tokio-stream.workspace = true
 futures.workspace = true

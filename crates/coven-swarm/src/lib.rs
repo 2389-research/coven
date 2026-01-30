@@ -257,6 +257,8 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
     use coven_swarm_backend::BackendHandle;
     use coven_swarm_core::BackendType;
 
+    use crate::agent::{new_pending_pack_tools, PackTool};
+
     // Load or generate SSH key
     let key_path = coven_ssh::default_swarm_key_path()
         .ok_or_else(|| anyhow::anyhow!("Could not determine SSH key path"))?;
@@ -280,6 +282,11 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
         );
     }
 
+    // Track concrete backend types for pack tool setup
+    // We keep Arc references so we can configure them in the on_welcome callback
+    let mut mux_backend: Option<Arc<MuxBackend>> = None;
+    let mut cli_backend: Option<Arc<DirectCliBackend>> = None;
+
     // Create backend based on mode
     let (handle, backend_name) = if options.dispatch_mode {
         // Dispatch mode uses coven-core's MuxBackend with dispatch tools
@@ -292,7 +299,7 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
             skip_default_tools: false,
             ..MuxConfig::default()
         };
-        let backend = MuxBackend::new(mux_config).await?;
+        let backend = Arc::new(MuxBackend::new(mux_config).await?);
 
         // Register dispatch tools
         backend
@@ -306,7 +313,8 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
             .await;
         tracing::info!("Registered dispatch tools: list_agents, create_workspace, delete_workspace");
 
-        let handle = BackendHandle::new(backend);
+        mux_backend = Some(backend.clone());
+        let handle = BackendHandle::new_from_arc(backend);
         let name = handle.name();
         (handle, name)
     } else {
@@ -318,10 +326,11 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
                     binary: config.acp_binary.clone(), // reuse acp_binary setting
                     working_dir: working_dir.clone(),
                     timeout_secs: 300,
-                    mcp_endpoint: None,
+                    mcp_endpoint: None, // Set after receiving Welcome with mcp_token
                 };
-                let backend = DirectCliBackend::new(cli_config);
-                let handle = BackendHandle::new(backend);
+                let backend = Arc::new(DirectCliBackend::new(cli_config));
+                cli_backend = Some(backend.clone());
+                let handle = BackendHandle::new_from_arc(backend);
                 let name = handle.name();
                 (handle, name)
             }
@@ -336,8 +345,9 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
                     skip_default_tools: false,
                     ..MuxConfig::default()
                 };
-                let backend = MuxBackend::new(mux_config).await?;
-                let handle = BackendHandle::new(backend);
+                let backend = Arc::new(MuxBackend::new(mux_config).await?);
+                mux_backend = Some(backend.clone());
+                let handle = BackendHandle::new_from_arc(backend);
                 let name = handle.name();
                 (handle, name)
             }
@@ -370,13 +380,21 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
                         skip_default_tools: false,
                         ..MuxConfig::default()
                     };
-                    let backend = MuxBackend::new(mux_config).await?;
-                    let handle = BackendHandle::new(backend);
+                    let backend = Arc::new(MuxBackend::new(mux_config).await?);
+                    mux_backend = Some(backend.clone());
+                    let handle = BackendHandle::new_from_arc(backend);
                     let name = handle.name();
                     (handle, name)
                 }
             }
         }
+    };
+
+    // Create pending pack tools registry for mux backends (gRPC-routed pack tools)
+    let pending_pack_tools = if mux_backend.is_some() {
+        Some(new_pending_pack_tools())
+    } else {
+        None
     };
 
     let session = Arc::new(Mutex::new(Session::new(handle)));
@@ -402,15 +420,61 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
     )
     .await?;
 
-    // Run the agent with real-time response streaming
+    // Run the agent with pack tool support
+    let pending_for_callback = pending_pack_tools.clone();
     client
-        .run(|msg, tx| {
-            let session = Arc::clone(&session);
-            async move {
-                let mut session = session.lock().await;
-                session.handle_message(msg, tx).await
-            }
-        })
+        .run_with_pack_tools(
+            |msg, tx| {
+                let session = Arc::clone(&session);
+                async move {
+                    let mut session = session.lock().await;
+                    session.handle_message(msg, tx).await
+                }
+            },
+            pending_pack_tools,
+            move |welcome_info, grpc_tx| {
+                // Configure pack tools based on backend type
+                let tool_count = welcome_info.available_tools.len();
+
+                if let Some(ref cli) = cli_backend {
+                    // Direct-CLI backend: Set MCP endpoint for Claude CLI to connect to gateway
+                    if let Some(mcp_url) = welcome_info.mcp_url() {
+                        tracing::info!(
+                            mcp_url = %mcp_url,
+                            tool_count = tool_count,
+                            "Setting MCP endpoint for direct-cli backend"
+                        );
+                        cli.set_mcp_endpoint(mcp_url);
+                    } else {
+                        tracing::warn!("No MCP endpoint available - pack tools will not work");
+                    }
+                } else if let Some(ref mux) = mux_backend {
+                    // Mux backend: Register PackTool instances for gRPC-routed execution
+                    if tool_count > 0 {
+                        if let Some(ref pending) = pending_for_callback {
+                            tracing::info!(
+                                tool_count = tool_count,
+                                "Registering pack tools for mux backend"
+                            );
+
+                            // We need to spawn this because register_tool is async
+                            // but on_welcome is a sync callback
+                            let mux = mux.clone();
+                            let pending = pending.clone();
+                            let tools = welcome_info.available_tools.clone();
+                            tokio::spawn(async move {
+                                for tool_def in &tools {
+                                    let pack_tool =
+                                        PackTool::new(tool_def, grpc_tx.clone(), pending.clone());
+                                    tracing::debug!(tool = %tool_def.name, "Registering pack tool");
+                                    mux.register_tool(pack_tool).await;
+                                }
+                            });
+                        }
+                    }
+                }
+            },
+        )
         .await?;
 
     Ok(())
