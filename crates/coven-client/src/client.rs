@@ -208,7 +208,9 @@ impl CovenClient {
 
     /// Create a gRPC channel
     async fn create_channel_internal(&self) -> Result<Channel, CovenError> {
-        let config = ChannelConfig::new(&self.gateway_url);
+        // Disable keep-alive to avoid h2 protocol errors with gateway
+        // The gateway's keep-alive enforcement may be too strict for our ping timing
+        let config = ChannelConfig::new(&self.gateway_url).without_keep_alive();
         create_channel(&config)
             .await
             .map_err(|e| CovenError::Connection(e.to_string()))
@@ -669,8 +671,8 @@ impl CovenClient {
         cancel: CancellationToken,
         ssh_key: Option<Arc<PrivateKey>>,
     ) {
-        // Create channel
-        let config = ChannelConfig::new(&gateway_url);
+        // Create channel (disable keep-alive to avoid h2 protocol errors with gateway)
+        let config = ChannelConfig::new(&gateway_url).without_keep_alive();
         let channel = match create_channel(&config).await {
             Ok(c) => c,
             Err(e) => {
@@ -700,7 +702,8 @@ impl CovenClient {
             ClientServiceClient::with_interceptor(channel, Self::make_ssh_interceptor(key));
 
         // Capture start time to filter out historical events
-        let stream_start_time = chrono::Utc::now();
+        // Subtract 5 seconds to account for clock skew between client and gateway
+        let stream_start_time = chrono::Utc::now() - chrono::Duration::seconds(5);
 
         // Start streaming events FIRST to avoid race condition where response
         // arrives before we're listening
@@ -720,7 +723,7 @@ impl CovenClient {
         // Now send the message (we're already listening for the response)
         let send_request = ClientSendMessageRequest {
             conversation_key: agent_id.clone(),
-            content,
+            content: content.clone(),
             attachments: vec![],
             idempotency_key: generate_idempotency_key(),
         };
@@ -763,7 +766,8 @@ impl CovenClient {
                             // Filter out historical events by timestamp
                             let is_historical = if let Some(client_stream_event::Payload::Event(ref evt)) = stream_event.payload {
                                 if let Ok(event_time) = chrono::DateTime::parse_from_rfc3339(&evt.timestamp) {
-                                    event_time < stream_start_time
+                                    let event_time_utc = event_time.with_timezone(&chrono::Utc);
+                                    event_time_utc < stream_start_time
                                 } else {
                                     false  // Can't parse timestamp, process the event
                                 }
@@ -818,7 +822,8 @@ impl CovenClient {
         let mut client = ClientServiceClient::new(channel);
 
         // Capture start time to filter out historical events
-        let stream_start_time = chrono::Utc::now();
+        // Subtract 5 seconds to account for clock skew between client and gateway
+        let stream_start_time = chrono::Utc::now() - chrono::Duration::seconds(5);
 
         // Start streaming events FIRST to avoid race condition where response
         // arrives before we're listening
@@ -881,7 +886,8 @@ impl CovenClient {
                             // Filter out historical events by timestamp
                             let is_historical = if let Some(client_stream_event::Payload::Event(ref evt)) = stream_event.payload {
                                 if let Ok(event_time) = chrono::DateTime::parse_from_rfc3339(&evt.timestamp) {
-                                    event_time < stream_start_time
+                                    let event_time_utc = event_time.with_timezone(&chrono::Utc);
+                                    event_time_utc < stream_start_time
                                 } else {
                                     false  // Can't parse timestamp, process the event
                                 }

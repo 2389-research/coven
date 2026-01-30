@@ -71,7 +71,7 @@ pub fn run(gateway_url: &str, key_path: &Path, message: &str, agent: Option<&str
     client.set_state_callback(Box::new(NoOpStateCallback));
 
     // Need to refresh agents first so the client knows about them
-    client
+    let _agents = client
         .refresh_agents()
         .map_err(|e| anyhow::anyhow!("Failed to connect to gateway: {}", e))?;
 
