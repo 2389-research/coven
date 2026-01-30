@@ -97,6 +97,13 @@ impl CovenClient {
         Ok(Self::new_internal(gateway_url, Some(Arc::new(key))))
     }
 
+    /// Create a new client with SSH key authentication (UniFFI-compatible)
+    ///
+    /// Same as `new_with_auth` but takes a String path for FFI compatibility.
+    pub fn new_with_ssh_key(gateway_url: String, ssh_key_path: String) -> Result<Self, CovenError> {
+        Self::new_with_auth(gateway_url, Path::new(&ssh_key_path))
+    }
+
     /// Create a new client with a pre-loaded SSH private key
     ///
     /// # Security Note
@@ -692,7 +699,25 @@ impl CovenClient {
         let mut client =
             ClientServiceClient::with_interceptor(channel, Self::make_ssh_interceptor(key));
 
-        // Send the message
+        // Capture start time to filter out historical events
+        let stream_start_time = chrono::Utc::now();
+
+        // Start streaming events FIRST to avoid race condition where response
+        // arrives before we're listening
+        let stream_request = StreamEventsRequest {
+            conversation_key: agent_id.clone(),
+            since_event_id: None,  // We'll filter by timestamp instead
+        };
+
+        let stream = match client.stream_events(stream_request).await {
+            Ok(response) => response.into_inner(),
+            Err(e) => {
+                Self::handle_stream_error(&state, &agent_id, e.to_string());
+                return;
+            }
+        };
+
+        // Now send the message (we're already listening for the response)
         let send_request = ClientSendMessageRequest {
             conversation_key: agent_id.clone(),
             content,
@@ -705,30 +730,60 @@ impl CovenClient {
             return;
         }
 
-        // Start streaming events
-        let stream_request = StreamEventsRequest {
-            conversation_key: agent_id.clone(),
-            since_event_id: None,
-        };
-
-        let stream = match client.stream_events(stream_request).await {
-            Ok(response) => response.into_inner(),
-            Err(e) => {
-                Self::handle_stream_error(&state, &agent_id, e.to_string());
-                return;
-            }
-        };
-
         tokio::pin!(stream);
+
+        // Track response state for completion detection
+        let mut _saw_user_message = false;
+        let mut saw_agent_response = false;
+        let mut idle_timeout = std::pin::pin!(tokio::time::sleep(std::time::Duration::from_secs(60)));
 
         loop {
             tokio::select! {
                 _ = cancel.cancelled() => {
                     break;
                 }
+                _ = &mut idle_timeout, if saw_agent_response => {
+                    // Agent responded and we've been idle - consider done
+                    Self::finalize_stream(&state, &agent_id);
+                    // Notify callback of completion
+                    {
+                        let state_guard = state.read().expect("lock poisoned");
+                        if let Some(cb) = &state_guard.stream_callback {
+                            cb.on_event(agent_id.clone(), StreamEvent::Done);
+                        }
+                    }
+                    break;
+                }
                 event = stream.next() => {
+                    // Reset idle timeout on any event
+                    idle_timeout.as_mut().reset(tokio::time::Instant::now() + std::time::Duration::from_secs(3));
+
                     match event {
                         Some(Ok(stream_event)) => {
+                            // Filter out historical events by timestamp
+                            let is_historical = if let Some(client_stream_event::Payload::Event(ref evt)) = stream_event.payload {
+                                if let Ok(event_time) = chrono::DateTime::parse_from_rfc3339(&evt.timestamp) {
+                                    event_time < stream_start_time
+                                } else {
+                                    false  // Can't parse timestamp, process the event
+                                }
+                            } else {
+                                false  // Not an Event payload, process it
+                            };
+
+                            if is_historical {
+                                continue;  // Skip historical events
+                            }
+
+                            // Track message flow for completion detection
+                            if let Some(client_stream_event::Payload::Event(ref evt)) = stream_event.payload {
+                                if evt.direction == "inbound_to_agent" {
+                                    _saw_user_message = true;
+                                } else if evt.direction == "outbound_from_agent" && evt.r#type == "message" {
+                                    saw_agent_response = true;
+                                }
+                            }
+
                             let (is_done, is_error) =
                                 Self::handle_grpc_stream_event(&state, &agent_id, stream_event).await;
 
@@ -751,6 +806,7 @@ impl CovenClient {
         }
     }
 
+
     /// Run the gRPC streaming request without auth
     async fn run_grpc_stream_no_auth(
         state: Arc<RwLock<ClientState>>,
@@ -761,7 +817,25 @@ impl CovenClient {
     ) {
         let mut client = ClientServiceClient::new(channel);
 
-        // Send the message
+        // Capture start time to filter out historical events
+        let stream_start_time = chrono::Utc::now();
+
+        // Start streaming events FIRST to avoid race condition where response
+        // arrives before we're listening
+        let stream_request = StreamEventsRequest {
+            conversation_key: agent_id.clone(),
+            since_event_id: None,  // We'll filter by timestamp instead
+        };
+
+        let stream = match client.stream_events(stream_request).await {
+            Ok(response) => response.into_inner(),
+            Err(e) => {
+                Self::handle_stream_error(&state, &agent_id, e.to_string());
+                return;
+            }
+        };
+
+        // Now send the message (we're already listening for the response)
         let send_request = ClientSendMessageRequest {
             conversation_key: agent_id.clone(),
             content,
@@ -774,30 +848,60 @@ impl CovenClient {
             return;
         }
 
-        // Start streaming events
-        let stream_request = StreamEventsRequest {
-            conversation_key: agent_id.clone(),
-            since_event_id: None,
-        };
-
-        let stream = match client.stream_events(stream_request).await {
-            Ok(response) => response.into_inner(),
-            Err(e) => {
-                Self::handle_stream_error(&state, &agent_id, e.to_string());
-                return;
-            }
-        };
-
         tokio::pin!(stream);
+
+        // Track response state for completion detection
+        let mut _saw_user_message = false;
+        let mut saw_agent_response = false;
+        let mut idle_timeout = std::pin::pin!(tokio::time::sleep(std::time::Duration::from_secs(60)));
 
         loop {
             tokio::select! {
                 _ = cancel.cancelled() => {
                     break;
                 }
+                _ = &mut idle_timeout, if saw_agent_response => {
+                    // Agent responded and we've been idle - consider done
+                    Self::finalize_stream(&state, &agent_id);
+                    // Notify callback of completion
+                    {
+                        let state_guard = state.read().expect("lock poisoned");
+                        if let Some(cb) = &state_guard.stream_callback {
+                            cb.on_event(agent_id.clone(), StreamEvent::Done);
+                        }
+                    }
+                    break;
+                }
                 event = stream.next() => {
+                    // Reset idle timeout on any event
+                    idle_timeout.as_mut().reset(tokio::time::Instant::now() + std::time::Duration::from_secs(3));
+
                     match event {
                         Some(Ok(stream_event)) => {
+                            // Filter out historical events by timestamp
+                            let is_historical = if let Some(client_stream_event::Payload::Event(ref evt)) = stream_event.payload {
+                                if let Ok(event_time) = chrono::DateTime::parse_from_rfc3339(&evt.timestamp) {
+                                    event_time < stream_start_time
+                                } else {
+                                    false  // Can't parse timestamp, process the event
+                                }
+                            } else {
+                                false  // Not an Event payload, process it
+                            };
+
+                            if is_historical {
+                                continue;  // Skip historical events
+                            }
+
+                            // Track message flow for completion detection
+                            if let Some(client_stream_event::Payload::Event(ref evt)) = stream_event.payload {
+                                if evt.direction == "inbound_to_agent" {
+                                    _saw_user_message = true;
+                                } else if evt.direction == "outbound_from_agent" && evt.r#type == "message" {
+                                    saw_agent_response = true;
+                                }
+                            }
+
                             let (is_done, is_error) =
                                 Self::handle_grpc_stream_event(&state, &agent_id, stream_event).await;
 
@@ -912,9 +1016,52 @@ impl CovenClient {
                 }
                 return (false, true);
             }
-            Some(client_stream_event::Payload::Event(_ledger_event)) => {
-                // Full event from history replay - skip for now
-                return (false, false);
+            Some(client_stream_event::Payload::Event(ledger_event)) => {
+                // Process ledger events - these contain actual conversation content
+                // Only process outbound messages from the agent (not our own messages)
+                if ledger_event.direction == "outbound_from_agent" {
+                    match ledger_event.r#type.as_str() {
+                        "message" => {
+                            if let Some(text) = ledger_event.text {
+                                // Accumulate text to buffer
+                                if let Some(stream) = state_guard.streams.get_mut(agent_id) {
+                                    stream.buffer.push_str(&text);
+                                }
+                                StreamEvent::Text { content: text }
+                            } else {
+                                return (false, false);
+                            }
+                        }
+                        "tool_call" => {
+                            // TODO: extract tool name from raw_payload_ref if needed
+                            StreamEvent::ToolUse {
+                                name: "tool".to_string(),
+                                input: ledger_event.text.unwrap_or_default(),
+                            }
+                        }
+                        "tool_result" => {
+                            return (false, false); // Skip tool results for now
+                        }
+                        "error" => {
+                            StreamEvent::Error {
+                                message: ledger_event.text.unwrap_or_else(|| "Unknown error".to_string()),
+                            }
+                        }
+                        "done" | "stream_done" => {
+                            Self::finalize_stream_internal(&mut state_guard, agent_id);
+                            if let Some(cb) = &state_guard.stream_callback {
+                                cb.on_event(agent_id.to_string(), StreamEvent::Done);
+                            }
+                            return (true, false);
+                        }
+                        _ => {
+                            return (false, false);
+                        }
+                    }
+                } else {
+                    // Inbound message (our own) - skip
+                    return (false, false);
+                }
             }
             Some(client_stream_event::Payload::ToolApproval(approval)) => {
                 StreamEvent::ToolApprovalRequest {
@@ -925,7 +1072,9 @@ impl CovenClient {
                     input_json: approval.input_json,
                 }
             }
-            None => return (false, false),
+            None => {
+                return (false, false);
+            }
         };
 
         // Notify callback

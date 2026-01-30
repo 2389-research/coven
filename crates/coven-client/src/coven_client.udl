@@ -89,6 +89,9 @@ callback interface StateCallback {
 interface CovenClient {
     constructor(string gateway_url);
 
+    [Throws=CovenError, Name=new_with_ssh_key]
+    constructor(string gateway_url, string ssh_key_path);
+
     // Callbacks
     void set_stream_callback(StreamCallback callback);
     void set_state_callback(StateCallback callback);

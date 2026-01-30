@@ -514,6 +514,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 public protocol CovenClientProtocol : AnyObject {
     
+    func approveTool(agentId: String, toolId: String, approved: Bool, approveAll: Bool) throws 
+    
     func cancelStream(agentId: String) 
     
     func checkHealth() throws 
@@ -604,7 +606,26 @@ public convenience init(gatewayUrl: String) {
     }
 
     
+public static func newWithSshKey(gatewayUrl: String, sshKeyPath: String)throws  -> CovenClient {
+    return try  FfiConverterTypeCovenClient.lift(try rustCallWithError(FfiConverterTypeCovenError.lift) {
+    uniffi_coven_client_fn_constructor_covenclient_new_with_ssh_key(
+        FfiConverterString.lower(gatewayUrl),
+        FfiConverterString.lower(sshKeyPath),$0
+    )
+})
+}
+    
 
+    
+open func approveTool(agentId: String, toolId: String, approved: Bool, approveAll: Bool)throws  {try rustCallWithError(FfiConverterTypeCovenError.lift) {
+    uniffi_coven_client_fn_method_covenclient_approve_tool(self.uniffiClonePointer(),
+        FfiConverterString.lower(agentId),
+        FfiConverterString.lower(toolId),
+        FfiConverterBool.lower(approved),
+        FfiConverterBool.lower(approveAll),$0
+    )
+}
+}
     
 open func cancelStream(agentId: String) {try! rustCall() {
     uniffi_coven_client_fn_method_covenclient_cancel_stream(self.uniffiClonePointer(),
@@ -1230,6 +1251,8 @@ public enum StreamEvent {
     )
     case toolState(state: String, detail: String
     )
+    case toolApprovalRequest(agentId: String, requestId: String, toolId: String, toolName: String, inputJson: String
+    )
     case usage(info: UsageInfo
     )
     case done
@@ -1263,12 +1286,15 @@ public struct FfiConverterTypeStreamEvent: FfiConverterRustBuffer {
         case 5: return .toolState(state: try FfiConverterString.read(from: &buf), detail: try FfiConverterString.read(from: &buf)
         )
         
-        case 6: return .usage(info: try FfiConverterTypeUsageInfo.read(from: &buf)
+        case 6: return .toolApprovalRequest(agentId: try FfiConverterString.read(from: &buf), requestId: try FfiConverterString.read(from: &buf), toolId: try FfiConverterString.read(from: &buf), toolName: try FfiConverterString.read(from: &buf), inputJson: try FfiConverterString.read(from: &buf)
         )
         
-        case 7: return .done
+        case 7: return .usage(info: try FfiConverterTypeUsageInfo.read(from: &buf)
+        )
         
-        case 8: return .error(message: try FfiConverterString.read(from: &buf)
+        case 8: return .done
+        
+        case 9: return .error(message: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -1307,17 +1333,26 @@ public struct FfiConverterTypeStreamEvent: FfiConverterRustBuffer {
             FfiConverterString.write(detail, into: &buf)
             
         
-        case let .usage(info):
+        case let .toolApprovalRequest(agentId,requestId,toolId,toolName,inputJson):
             writeInt(&buf, Int32(6))
+            FfiConverterString.write(agentId, into: &buf)
+            FfiConverterString.write(requestId, into: &buf)
+            FfiConverterString.write(toolId, into: &buf)
+            FfiConverterString.write(toolName, into: &buf)
+            FfiConverterString.write(inputJson, into: &buf)
+            
+        
+        case let .usage(info):
+            writeInt(&buf, Int32(7))
             FfiConverterTypeUsageInfo.write(info, into: &buf)
             
         
         case .done:
-            writeInt(&buf, Int32(7))
+            writeInt(&buf, Int32(8))
         
         
         case let .error(message):
-            writeInt(&buf, Int32(8))
+            writeInt(&buf, Int32(9))
             FfiConverterString.write(message, into: &buf)
             
         }
@@ -1750,6 +1785,9 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_coven_client_checksum_method_covenclient_approve_tool() != 62597) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_coven_client_checksum_method_covenclient_cancel_stream() != 52244) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1799,6 +1837,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_coven_client_checksum_constructor_covenclient_new() != 40059) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_coven_client_checksum_constructor_covenclient_new_with_ssh_key() != 39120) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_coven_client_checksum_method_statecallback_on_connection_status() != 8308) {

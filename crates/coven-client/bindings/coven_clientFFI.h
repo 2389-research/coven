@@ -328,6 +328,16 @@ void uniffi_coven_client_fn_free_covenclient(void*_Nonnull ptr, RustCallStatus *
 void*_Nonnull uniffi_coven_client_fn_constructor_covenclient_new(RustBuffer gateway_url, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_FN_CONSTRUCTOR_COVENCLIENT_NEW_WITH_SSH_KEY
+#define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_FN_CONSTRUCTOR_COVENCLIENT_NEW_WITH_SSH_KEY
+void*_Nonnull uniffi_coven_client_fn_constructor_covenclient_new_with_ssh_key(RustBuffer gateway_url, RustBuffer ssh_key_path, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_FN_METHOD_COVENCLIENT_APPROVE_TOOL
+#define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_FN_METHOD_COVENCLIENT_APPROVE_TOOL
+void uniffi_coven_client_fn_method_covenclient_approve_tool(void*_Nonnull ptr, RustBuffer agent_id, RustBuffer tool_id, int8_t approved, int8_t approve_all, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_FN_METHOD_COVENCLIENT_CANCEL_STREAM
 #define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_FN_METHOD_COVENCLIENT_CANCEL_STREAM
 void uniffi_coven_client_fn_method_covenclient_cancel_stream(void*_Nonnull ptr, RustBuffer agent_id, RustCallStatus *_Nonnull out_status
@@ -698,6 +708,12 @@ void ffi_coven_client_rust_future_free_void(uint64_t handle
 void ffi_coven_client_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_METHOD_COVENCLIENT_APPROVE_TOOL
+#define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_METHOD_COVENCLIENT_APPROVE_TOOL
+uint16_t uniffi_coven_client_checksum_method_covenclient_approve_tool(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_METHOD_COVENCLIENT_CANCEL_STREAM
 #define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_METHOD_COVENCLIENT_CANCEL_STREAM
 uint16_t uniffi_coven_client_checksum_method_covenclient_cancel_stream(void
@@ -797,6 +813,12 @@ uint16_t uniffi_coven_client_checksum_method_covenclient_set_stream_callback(voi
 #ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_CONSTRUCTOR_COVENCLIENT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_CONSTRUCTOR_COVENCLIENT_NEW
 uint16_t uniffi_coven_client_checksum_constructor_covenclient_new(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_CONSTRUCTOR_COVENCLIENT_NEW_WITH_SSH_KEY
+#define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_CONSTRUCTOR_COVENCLIENT_NEW_WITH_SSH_KEY
+uint16_t uniffi_coven_client_checksum_constructor_covenclient_new_with_ssh_key(void
     
 );
 #endif
