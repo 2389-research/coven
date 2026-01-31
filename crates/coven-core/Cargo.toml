@@ -50,3 +50,4 @@ dirs.workspace = true
 glob = "0.3"
 regex = "1"
 tempfile.workspace = true
+shellexpand = "3"

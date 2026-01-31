@@ -44,6 +44,13 @@ pub struct MuxConfig {
     /// Filenames to look for local system prompts
     #[serde(default = "default_local_prompt_files")]
     pub local_prompt_files: Vec<String>,
+    /// Path to global soul.md (e.g., ~/.config/coven/soul.md)
+    pub global_soul_path: Option<PathBuf>,
+    /// Path to per-agent soul.md (absolute or relative to working_dir)
+    pub agent_soul_path: Option<PathBuf>,
+    /// Filenames to search for soul in working_dir (default: ["soul.md", ".coven/soul.md"])
+    #[serde(default = "default_soul_files")]
+    pub soul_files: Vec<String>,
     /// MCP servers to connect to (stdio transport)
     #[serde(default)]
     pub mcp_servers: Vec<MuxMcpServerConfig>,
@@ -93,6 +100,10 @@ fn default_local_prompt_files() -> Vec<String> {
     ]
 }
 
+fn default_soul_files() -> Vec<String> {
+    vec!["soul.md".to_string(), ".coven/soul.md".to_string()]
+}
+
 impl Default for MuxConfig {
     fn default() -> Self {
         Self {
@@ -101,6 +112,9 @@ impl Default for MuxConfig {
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             global_system_prompt_path: None,
             local_prompt_files: default_local_prompt_files(),
+            global_soul_path: None,
+            agent_soul_path: None,
+            soul_files: default_soul_files(),
             mcp_servers: Vec::new(),
             skip_default_tools: false,
             gateway_mcp: None,
@@ -548,11 +562,18 @@ impl Backend for MuxBackend {
     }
 }
 
-/// Build system prompt from global and local files
+/// Build system prompt from global and local files, including soul files for identity/personality.
+///
+/// Prompt building order:
+/// 1. Working directory context (always first)
+/// 2. Global system prompt (~/.mux/system.md or configured path)
+/// 3. Global soul (~/.config/coven/soul.md or configured path)
+/// 4. Per-agent soul (.coven/soul.md or configured path in working_dir)
+/// 5. Local project prompt (claude.md, CLAUDE.md, etc.)
 fn build_system_prompt(config: &MuxConfig) -> Option<String> {
     let mut parts = Vec::new();
 
-    // 0. Working directory context - critical for tools to work correctly
+    // 1. Working directory context - critical for tools to work correctly
     let working_dir_str = config.working_dir.to_string_lossy();
     parts.push(format!(
         "# Environment\n\n\
@@ -562,7 +583,7 @@ fn build_system_prompt(config: &MuxConfig) -> Option<String> {
         working_dir_str, working_dir_str
     ));
 
-    // 1. Global system prompt (~/.mux/system.md or configured path)
+    // 2. Global system prompt (~/.mux/system.md or configured path)
     if let Some(ref global_path) = config.global_system_prompt_path {
         if let Ok(content) = std::fs::read_to_string(global_path) {
             if !content.trim().is_empty() {
@@ -579,7 +600,57 @@ fn build_system_prompt(config: &MuxConfig) -> Option<String> {
         }
     }
 
-    // 2. Local system prompt (claude.md, agent.md, etc. in working_dir)
+    // 3. Global soul (~/.config/coven/soul.md or configured path)
+    let global_soul_content = if let Some(ref soul_path) = config.global_soul_path {
+        // Expand tilde in configured path
+        let expanded = expand_tilde(soul_path);
+        std::fs::read_to_string(&expanded).ok()
+    } else if let Some(home) = home_dir() {
+        // Default to ~/.config/coven/soul.md
+        let default_soul_path = home.join(".config").join("coven").join("soul.md");
+        std::fs::read_to_string(default_soul_path).ok()
+    } else {
+        None
+    };
+
+    if let Some(content) = global_soul_content {
+        if !content.trim().is_empty() {
+            parts.push(format!("# Identity\n\n{}", content));
+        }
+    }
+
+    // 4. Per-agent soul (configured path or search in working_dir)
+    let agent_soul_content = if let Some(ref soul_path) = config.agent_soul_path {
+        // Expand tilde, then resolve relative paths against working_dir
+        let expanded = expand_tilde(soul_path);
+        let resolved = if expanded.is_absolute() {
+            expanded
+        } else {
+            config.working_dir.join(expanded)
+        };
+        std::fs::read_to_string(resolved).ok()
+    } else {
+        // Search soul_files in working_dir
+        config.soul_files.iter().find_map(|filename| {
+            let path = config.working_dir.join(filename);
+            std::fs::read_to_string(&path).ok()
+        })
+    };
+
+    if let Some(content) = agent_soul_content {
+        if !content.trim().is_empty() {
+            // If no global soul was added, add the Identity header
+            let needs_header = !parts.iter().any(|p| p.starts_with("# Identity"));
+            if needs_header {
+                parts.push(format!("# Identity\n\n{}", content));
+            } else {
+                // Append to existing identity section with separator
+                parts.push(format!("## Agent Identity\n\n{}", content));
+            }
+        }
+    }
+
+    // 5. Local system prompt (claude.md, agent.md, etc. in working_dir)
     for filename in &config.local_prompt_files {
         let local_path = config.working_dir.join(filename);
         if let Ok(content) = std::fs::read_to_string(&local_path) {
@@ -957,9 +1028,220 @@ fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from)
 }
 
+/// Expand tilde (~) in a path to the user's home directory.
+fn expand_tilde(path: &std::path::Path) -> PathBuf {
+    let path_str = path.to_string_lossy();
+    PathBuf::from(shellexpand::tilde(&path_str).into_owned())
+}
+
 fn now_unix_secs() -> String {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs().to_string())
         .unwrap_or_else(|_| "0".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_build_system_prompt_includes_working_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = MuxConfig {
+            working_dir: temp_dir.path().to_path_buf(),
+            ..MuxConfig::default()
+        };
+
+        let prompt = build_system_prompt(&config).unwrap();
+
+        assert!(prompt.contains("# Environment"));
+        assert!(prompt.contains(&temp_dir.path().to_string_lossy().to_string()));
+    }
+
+    #[test]
+    fn test_build_system_prompt_loads_global_soul() {
+        let temp_dir = TempDir::new().unwrap();
+        let soul_path = temp_dir.path().join("soul.md");
+        std::fs::write(&soul_path, "You are Aster, a helpful agent.").unwrap();
+
+        let config = MuxConfig {
+            working_dir: temp_dir.path().to_path_buf(),
+            global_soul_path: Some(soul_path),
+            ..MuxConfig::default()
+        };
+
+        let prompt = build_system_prompt(&config).unwrap();
+
+        assert!(prompt.contains("# Identity"));
+        assert!(prompt.contains("You are Aster, a helpful agent."));
+    }
+
+    #[test]
+    fn test_build_system_prompt_loads_agent_soul_from_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let agent_soul_path = temp_dir.path().join("agent-soul.md");
+        std::fs::write(&agent_soul_path, "Agent-specific personality traits.").unwrap();
+
+        let config = MuxConfig {
+            working_dir: temp_dir.path().to_path_buf(),
+            agent_soul_path: Some(agent_soul_path),
+            ..MuxConfig::default()
+        };
+
+        let prompt = build_system_prompt(&config).unwrap();
+
+        assert!(prompt.contains("# Identity"));
+        assert!(prompt.contains("Agent-specific personality traits."));
+    }
+
+    #[test]
+    fn test_build_system_prompt_searches_soul_files() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create .coven/soul.md in working_dir
+        let coven_dir = temp_dir.path().join(".coven");
+        std::fs::create_dir_all(&coven_dir).unwrap();
+        std::fs::write(coven_dir.join("soul.md"), "Found via soul_files search.").unwrap();
+
+        let config = MuxConfig {
+            working_dir: temp_dir.path().to_path_buf(),
+            soul_files: vec![".coven/soul.md".to_string()],
+            ..MuxConfig::default()
+        };
+
+        let prompt = build_system_prompt(&config).unwrap();
+
+        assert!(prompt.contains("# Identity"));
+        assert!(prompt.contains("Found via soul_files search."));
+    }
+
+    #[test]
+    fn test_build_system_prompt_agent_soul_relative_path() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create agent soul at a relative path within working_dir
+        let subdir = temp_dir.path().join("config");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(subdir.join("my-soul.md"), "Relative path agent soul.").unwrap();
+
+        let config = MuxConfig {
+            working_dir: temp_dir.path().to_path_buf(),
+            // Relative path should be resolved against working_dir
+            agent_soul_path: Some(PathBuf::from("config/my-soul.md")),
+            ..MuxConfig::default()
+        };
+
+        let prompt = build_system_prompt(&config).unwrap();
+
+        assert!(prompt.contains("# Identity"));
+        assert!(prompt.contains("Relative path agent soul."));
+    }
+
+    #[test]
+    fn test_build_system_prompt_both_global_and_agent_soul() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create global soul
+        let global_soul_path = temp_dir.path().join("global-soul.md");
+        std::fs::write(&global_soul_path, "Global identity content.").unwrap();
+
+        // Create agent soul in working_dir
+        let agent_soul_path = temp_dir.path().join("soul.md");
+        std::fs::write(&agent_soul_path, "Agent-specific content.").unwrap();
+
+        let config = MuxConfig {
+            working_dir: temp_dir.path().to_path_buf(),
+            global_soul_path: Some(global_soul_path),
+            soul_files: vec!["soul.md".to_string()],
+            ..MuxConfig::default()
+        };
+
+        let prompt = build_system_prompt(&config).unwrap();
+
+        // Both should be included
+        assert!(prompt.contains("Global identity content."));
+        assert!(prompt.contains("Agent-specific content."));
+        // Global soul gets # Identity, agent soul gets ## Agent Identity
+        assert!(prompt.contains("# Identity"));
+        assert!(prompt.contains("## Agent Identity"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_order() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create global system prompt
+        let system_prompt_path = temp_dir.path().join("system.md");
+        std::fs::write(&system_prompt_path, "GLOBAL_SYSTEM_MARKER").unwrap();
+
+        // Create global soul
+        let global_soul_path = temp_dir.path().join("soul.md");
+        std::fs::write(&global_soul_path, "GLOBAL_SOUL_MARKER").unwrap();
+
+        // Create local project prompt
+        std::fs::write(temp_dir.path().join("claude.md"), "LOCAL_PROMPT_MARKER").unwrap();
+
+        let config = MuxConfig {
+            working_dir: temp_dir.path().to_path_buf(),
+            global_system_prompt_path: Some(system_prompt_path),
+            global_soul_path: Some(global_soul_path),
+            local_prompt_files: vec!["claude.md".to_string()],
+            ..MuxConfig::default()
+        };
+
+        let prompt = build_system_prompt(&config).unwrap();
+
+        // Verify order: Environment → Global System → Global Soul → Local Prompt
+        let env_pos = prompt.find("# Environment").unwrap();
+        let system_pos = prompt.find("GLOBAL_SYSTEM_MARKER").unwrap();
+        let soul_pos = prompt.find("GLOBAL_SOUL_MARKER").unwrap();
+        let local_pos = prompt.find("LOCAL_PROMPT_MARKER").unwrap();
+
+        assert!(
+            env_pos < system_pos,
+            "Environment should come before global system"
+        );
+        assert!(
+            system_pos < soul_pos,
+            "Global system should come before global soul"
+        );
+        assert!(soul_pos < local_pos, "Global soul should come before local prompt");
+    }
+
+    #[test]
+    fn test_build_system_prompt_empty_soul_ignored() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create empty soul file
+        let soul_path = temp_dir.path().join("soul.md");
+        std::fs::write(&soul_path, "   \n  \n").unwrap(); // Whitespace only
+
+        let config = MuxConfig {
+            working_dir: temp_dir.path().to_path_buf(),
+            global_soul_path: Some(soul_path),
+            ..MuxConfig::default()
+        };
+
+        let prompt = build_system_prompt(&config).unwrap();
+
+        // Empty soul should not add Identity section
+        assert!(!prompt.contains("# Identity"));
+    }
+
+    #[test]
+    fn test_default_soul_files() {
+        let files = default_soul_files();
+        assert_eq!(files, vec!["soul.md", ".coven/soul.md"]);
+    }
+
+    #[test]
+    fn test_mux_config_default_includes_soul_fields() {
+        let config = MuxConfig::default();
+
+        assert!(config.global_soul_path.is_none());
+        assert!(config.agent_soul_path.is_none());
+        assert_eq!(config.soul_files, vec!["soul.md", ".coven/soul.md"]);
+    }
 }

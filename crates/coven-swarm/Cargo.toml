@@ -54,6 +54,7 @@ ratatui.workspace = true
 crossterm.workspace = true
 shellexpand = "3"
 rand.workspace = true
+url = "2"
 
 [dev-dependencies]
 tempfile.workspace = true

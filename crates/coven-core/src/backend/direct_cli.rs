@@ -179,11 +179,13 @@ async fn spawn_cli_process(
     ];
 
     // Add gateway MCP server if endpoint provided (enables pack tools like log_entry, todo_*, bbs_*)
-    // Uses --mcp-config to ADD the server while preserving default MCP discovery
+    // Uses --strict-mcp-config to ONLY use the gateway's MCP server and avoid hangs from other MCP servers
+    // Note: Must include "type": "http" for Claude CLI to recognize HTTP transport
     if let Some(endpoint) = mcp_endpoint {
         let mcp_config = serde_json::json!({
             "mcpServers": {
                 "coven-gateway": {
+                    "type": "http",
                     "url": endpoint
                 }
             }
@@ -193,6 +195,7 @@ async fn spawn_cli_process(
             endpoint = %endpoint,
             "Adding gateway MCP server for pack tools"
         );
+        args.push("--strict-mcp-config".to_string());
         args.push("--mcp-config".to_string());
         args.push(mcp_config_str);
     }
@@ -203,20 +206,41 @@ async fn spawn_cli_process(
         args.push(session_id.to_string());
     }
 
-    args.push(text.to_string());
+    // When using MCP, pass message via stdin instead of argument to avoid hang
+    // Claude CLI with MCP servers hangs when message is passed as argument with stdin=null
+    let use_stdin = mcp_endpoint.is_some();
 
-    tracing::debug!(args = ?args, cwd = %config.working_dir.display(), "Spawning Claude CLI");
+    if !use_stdin {
+        args.push(text.to_string());
+    }
 
-    let child = ProcessCommand::new(&config.binary)
+    tracing::debug!(args = ?args, cwd = %config.working_dir.display(), use_stdin = use_stdin, "Spawning Claude CLI");
+
+    let mut child = ProcessCommand::new(&config.binary)
         .args(&args)
         .current_dir(&config.working_dir)
-        // Close stdin - Claude CLI in --print mode waits for stdin when it's piped.
-        // Without this, it hangs waiting for input that never comes.
-        .stdin(std::process::Stdio::null())
+        // Use piped stdin when MCP is enabled, otherwise null to prevent hangs
+        .stdin(if use_stdin {
+            std::process::Stdio::piped()
+        } else {
+            std::process::Stdio::null()
+        })
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
         .context("Failed to spawn Claude CLI")?;
+
+    // Write message to stdin if using MCP
+    if use_stdin {
+        if let Some(mut stdin) = child.stdin.take() {
+            use tokio::io::AsyncWriteExt;
+            stdin
+                .write_all(text.as_bytes())
+                .await
+                .context("Failed to write to stdin")?;
+            // stdin is dropped here, closing it and signaling EOF to Claude CLI
+        }
+    }
 
     Ok(child)
 }

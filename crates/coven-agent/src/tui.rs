@@ -615,6 +615,9 @@ async fn run_agent_task(
                     .global_system_prompt_path
                     .or_else(|| dirs::home_dir().map(|h| h.join(".mux/system.md"))),
                 local_prompt_files: mux_settings.local_prompt_files,
+                global_soul_path: mux_settings.global_soul_path,
+                agent_soul_path: mux_settings.agent_soul_path,
+                soul_files: mux_settings.soul_files,
                 mcp_servers: vec![],
                 skip_default_tools: false,
                 gateway_mcp: None, // Standalone TUI doesn't connect to gateway

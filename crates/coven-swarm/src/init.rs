@@ -105,6 +105,9 @@ pub fn run_init() -> Result<()> {
         working_directory: working_directory.clone(),
         default_backend,
         acp_binary: "claude".to_string(),
+        global_soul_path: None,
+        dispatch_soul_path: None,
+        soul_files: vec!["soul.md".to_string(), ".coven/soul.md".to_string()],
     };
 
     // Save config

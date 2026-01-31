@@ -64,21 +64,31 @@ pub struct WelcomeInfo {
 }
 
 impl WelcomeInfo {
-    /// Build the full MCP URL with token for direct-cli backends
+    /// Build the full MCP URL with token for direct-cli backends.
+    /// Uses path-based format: http://endpoint/mcp/token
     pub fn mcp_url(&self) -> Option<String> {
         if self.mcp_endpoint.is_empty() || self.mcp_token.is_empty() {
             return None;
         }
-        // Build URL: endpoint?token=xxx or endpoint&token=xxx if already has query params
-        let separator = if self.mcp_endpoint.contains('?') {
-            '&'
-        } else {
-            '?'
-        };
-        Some(format!(
-            "{}{}token={}",
-            self.mcp_endpoint, separator, self.mcp_token
-        ))
+        // Build URL with token as path segment: endpoint/token
+        // Gateway expects path-based tokens, not query params
+        if let Ok(mut url) = url::Url::parse(&self.mcp_endpoint) {
+            let ok = url
+                .path_segments_mut()
+                .map(|mut segments| {
+                    // Remove trailing empty segment (from trailing slash)
+                    segments.pop_if_empty();
+                    // Add token as path segment
+                    segments.push(&self.mcp_token);
+                })
+                .is_ok();
+            if ok {
+                return Some(url.to_string());
+            }
+        }
+        // Fallback: simple concatenation
+        let endpoint = self.mcp_endpoint.trim_end_matches('/');
+        Some(format!("{}/{}", endpoint, self.mcp_token))
     }
 }
 
@@ -135,7 +145,7 @@ impl GatewayClient {
     pub async fn run<F, Fut>(self, message_handler: F) -> Result<()>
     where
         F: FnMut(coven::SendMessage, ResponseSender) -> Fut,
-        Fut: std::future::Future<Output = Result<()>>,
+        Fut: std::future::Future<Output = Result<()>> + Send + 'static,
     {
         // Run without pack tool support
         self.run_with_pack_tools(message_handler, None, |_, _| {})
@@ -151,6 +161,10 @@ impl GatewayClient {
     /// The `on_welcome` callback receives WelcomeInfo and a sender for ExecutePackTool messages.
     /// For direct-cli backends, use WelcomeInfo::mcp_url() to configure the backend.
     /// For mux backends, register PackTool instances using the provided sender.
+    ///
+    /// Note: Message handlers are spawned as separate tasks to allow concurrent processing.
+    /// This is critical for pack tools: the handler may call a pack tool which waits for a
+    /// PackToolResult that arrives on the same gRPC stream. Without spawning, this would deadlock.
     pub async fn run_with_pack_tools<F, Fut, W>(
         mut self,
         mut message_handler: F,
@@ -159,7 +173,7 @@ impl GatewayClient {
     ) -> Result<()>
     where
         F: FnMut(coven::SendMessage, ResponseSender) -> Fut,
-        Fut: std::future::Future<Output = Result<()>>,
+        Fut: std::future::Future<Output = Result<()>> + Send + 'static,
         W: FnOnce(WelcomeInfo, mpsc::Sender<AgentMessage>),
     {
         let (tx, rx) = mpsc::channel::<AgentMessage>(32);
@@ -244,16 +258,23 @@ impl GatewayClient {
                     let request_id = send_msg.request_id.clone();
                     tracing::info!(request_id = %request_id, "Received message");
 
-                    // Pass the response sender to the handler for real-time streaming
-                    if let Err(e) = message_handler(send_msg, resp_tx.clone()).await {
-                        tracing::error!(error = %e, "Handler error");
-                        // Send error response
-                        let error_response = coven::MessageResponse {
-                            request_id,
-                            event: Some(coven::message_response::Event::Error(e.to_string())),
-                        };
-                        let _ = resp_tx.send(error_response).await;
-                    }
+                    // CRITICAL: Spawn message handler as a separate task to avoid blocking the stream.
+                    // This allows us to receive PackToolResult messages while the handler is running.
+                    // Without spawning, pack tools would deadlock: the handler waits for a result
+                    // that arrives on the same gRPC stream we're blocked on.
+                    let resp_tx_clone = resp_tx.clone();
+                    let handler_future = message_handler(send_msg, resp_tx_clone.clone());
+                    tokio::spawn(async move {
+                        if let Err(e) = handler_future.await {
+                            tracing::error!(error = %e, request_id = %request_id, "Handler error");
+                            // Send error response
+                            let error_response = coven::MessageResponse {
+                                request_id,
+                                event: Some(coven::message_response::Event::Error(e.to_string())),
+                            };
+                            let _ = resp_tx_clone.send(error_response).await;
+                        }
+                    });
                 }
                 Some(coven::server_message::Payload::Shutdown(shutdown)) => {
                     tracing::info!(reason = %shutdown.reason, "Received shutdown");

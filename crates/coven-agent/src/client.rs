@@ -73,6 +73,9 @@ pub async fn run(
                     .global_system_prompt_path
                     .or_else(|| dirs::home_dir().map(|h| h.join(".mux/system.md"))),
                 local_prompt_files: mux_settings.local_prompt_files,
+                global_soul_path: mux_settings.global_soul_path,
+                agent_soul_path: mux_settings.agent_soul_path,
+                soul_files: mux_settings.soul_files,
                 mcp_servers: vec![],
                 skip_default_tools: false,
                 gateway_mcp: None, // Set after gateway connection
@@ -260,6 +263,15 @@ pub async fn run(
                         welcome.server_id, welcome.agent_id
                     );
                     eprintln!("  Instance ID: {}", welcome.instance_id);
+
+                    // Apply secrets as environment variables
+                    if !welcome.secrets.is_empty() {
+                        eprintln!("  Secrets: {} configured", welcome.secrets.len());
+                        for (key, value) in &welcome.secrets {
+                            std::env::set_var(key, value);
+                            eprintln!("    {} = [set]", key);
+                        }
+                    }
 
                     // Set MCP endpoint for CLI backend if endpoint and token provided
                     if let Some(ref cli) = cli_backend {

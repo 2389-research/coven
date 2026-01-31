@@ -230,6 +230,7 @@ message Welcome {
   repeated ToolDefinition available_tools = 5; // Pack tools available to this agent
   string mcp_token = 6;    // Token for MCP endpoint authentication (capability-scoped)
   string mcp_endpoint = 7; // Base MCP endpoint URL (e.g., "http://gateway:8080/mcp")
+  map<string, string> secrets = 8; // Resolved env vars for this agent (global + overrides)
 }
 
 // Server tells agent to process a message

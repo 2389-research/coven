@@ -34,10 +34,26 @@ pub struct Config {
     /// ACP binary path (for acp backend)
     #[serde(default = "default_acp_binary")]
     pub acp_binary: String,
+
+    /// Global soul.md for all swarm agents (e.g., ~/.config/coven/soul.md)
+    #[serde(default)]
+    pub global_soul_path: Option<String>,
+
+    /// Dispatch agent's soul.md (separate identity for coordinator)
+    #[serde(default)]
+    pub dispatch_soul_path: Option<String>,
+
+    /// Filenames to search for soul.md in working directories
+    #[serde(default = "default_soul_files")]
+    pub soul_files: Vec<String>,
 }
 
 fn default_acp_binary() -> String {
     "claude".to_string()
+}
+
+fn default_soul_files() -> Vec<String> {
+    vec!["soul.md".to_string(), ".coven/soul.md".to_string()]
 }
 
 impl Config {
@@ -140,6 +156,9 @@ mod tests {
             working_directory: "~/test-workspaces".to_string(),
             default_backend: BackendType::Mux,
             acp_binary: "claude".to_string(),
+            global_soul_path: None,
+            dispatch_soul_path: None,
+            soul_files: default_soul_files(),
         };
 
         config.save(&path).unwrap();
@@ -158,6 +177,9 @@ mod tests {
             working_directory: "~/workspaces".to_string(),
             default_backend: BackendType::Acp,
             acp_binary: "claude".to_string(),
+            global_soul_path: None,
+            dispatch_soul_path: None,
+            soul_files: default_soul_files(),
         };
 
         let expanded_wd = config.working_directory_expanded();
@@ -196,6 +218,9 @@ mod tests {
             working_directory: "~/workspaces".to_string(),
             default_backend: BackendType::Acp,
             acp_binary: "claude".to_string(),
+            global_soul_path: None,
+            dispatch_soul_path: None,
+            soul_files: default_soul_files(),
         };
 
         // Should return the explicit URL

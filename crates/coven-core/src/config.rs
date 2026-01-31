@@ -67,6 +67,12 @@ pub struct MuxBackendConfig {
     pub global_system_prompt_path: Option<PathBuf>,
     /// Filenames to look for local system prompts
     pub local_prompt_files: Vec<String>,
+    /// Path to global soul.md for agent identity/personality
+    pub global_soul_path: Option<PathBuf>,
+    /// Path to per-agent soul.md (absolute or relative to working_dir)
+    pub agent_soul_path: Option<PathBuf>,
+    /// Filenames to search for soul.md in working directories
+    pub soul_files: Vec<String>,
 }
 
 impl Default for MuxBackendConfig {
@@ -80,6 +86,9 @@ impl Default for MuxBackendConfig {
                 "CLAUDE.md".to_string(),
                 "agent.md".to_string(),
             ],
+            global_soul_path: None,
+            agent_soul_path: None,
+            soul_files: vec!["soul.md".to_string(), ".coven/soul.md".to_string()],
         }
     }
 }
@@ -221,6 +230,9 @@ timeout_secs = 300
 # max_tokens = 8192
 # global_system_prompt_path = "~/.mux/system.md"
 # local_prompt_files = ["claude.md", "CLAUDE.md", "agent.md"]
+# global_soul_path = "~/.config/coven/soul.md"  # Agent identity/personality (supports ~)
+# agent_soul_path = ".coven/agent-soul.md"      # Per-agent soul (relative to working_dir)
+# soul_files = ["soul.md", ".coven/soul.md"]    # Auto-search for soul in working_dir
 
 [slack]
 # bot_token = "xoxb-..."

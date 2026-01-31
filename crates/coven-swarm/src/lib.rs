@@ -296,6 +296,9 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
             working_dir: working_dir.clone(),
             global_system_prompt_path: None,
             local_prompt_files: vec!["claude.md".to_string(), "CLAUDE.md".to_string()],
+            global_soul_path: config.global_soul_path.as_ref().map(PathBuf::from),
+            agent_soul_path: config.dispatch_soul_path.as_ref().map(PathBuf::from),
+            soul_files: config.soul_files.clone(),
             skip_default_tools: false,
             ..MuxConfig::default()
         };
@@ -342,6 +345,9 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
                     working_dir: working_dir.clone(),
                     global_system_prompt_path: None,
                     local_prompt_files: vec!["claude.md".to_string(), "CLAUDE.md".to_string()],
+                    global_soul_path: config.global_soul_path.as_ref().map(PathBuf::from),
+                    agent_soul_path: None, // Per-agent soul loaded from working_dir
+                    soul_files: config.soul_files.clone(),
                     skip_default_tools: false,
                     ..MuxConfig::default()
                 };
@@ -377,6 +383,9 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
                         working_dir: working_dir.clone(),
                         global_system_prompt_path: None,
                         local_prompt_files: vec!["claude.md".to_string(), "CLAUDE.md".to_string()],
+                        global_soul_path: config.global_soul_path.as_ref().map(PathBuf::from),
+                        agent_soul_path: None, // Per-agent soul loaded from working_dir
+                        soul_files: config.soul_files.clone(),
                         skip_default_tools: false,
                         ..MuxConfig::default()
                     };

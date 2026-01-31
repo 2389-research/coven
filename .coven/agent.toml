@@ -1,8 +1,10 @@
-# Agent: disaster
-# Created: 2026-01-28
+# Agent: aster
+# Created: 2026-01-29
 
-name = "disaster"
+name = "aster"
+server = "http://localhost:50051"
 backend = "cli"
+capabilities = ["base", "chat"]
 
 # Working directory: uses current directory when agent is launched
 # Uncomment and set to a specific path if needed:
