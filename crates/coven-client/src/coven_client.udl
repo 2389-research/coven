@@ -2,6 +2,10 @@
 // ABOUTME: Defines the FFI interface for Swift/Kotlin
 
 namespace coven_client {
+    /// Generate or load an SSH key at the given path and return its fingerprint.
+    /// Use this from Swift instead of generating keys natively to ensure format compatibility.
+    [Throws=CovenError]
+    string generate_ssh_key(string key_path);
 };
 
 // ============================================================================

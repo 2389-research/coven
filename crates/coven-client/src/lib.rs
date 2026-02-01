@@ -13,6 +13,37 @@ pub use models::*;
 uniffi::include_scaffolding!("coven_client");
 
 // ============================================================================
+// Standalone Functions (for FFI)
+// ============================================================================
+
+/// Generate or load an SSH key at the given path and return its fingerprint.
+///
+/// This creates a proper OpenSSH-formatted Ed25519 key that can be loaded
+/// by the Rust ssh_key crate. Use this from Swift instead of generating keys
+/// natively to ensure format compatibility.
+///
+/// Returns the hex-encoded SHA256 fingerprint of the public key.
+///
+/// # Errors
+/// Returns `CovenError::Api` with a descriptive message if:
+/// - The key file cannot be read or written
+/// - The key format is invalid
+/// - Directory creation fails
+pub fn generate_ssh_key(key_path: String) -> Result<String, CovenError> {
+    use coven_ssh::{compute_fingerprint, load_or_generate_key};
+    use std::path::Path;
+
+    let path = Path::new(&key_path);
+    let key = load_or_generate_key(path)
+        .map_err(|e| CovenError::Api(format!("SSH key error: {}", e)))?;
+
+    let fingerprint = compute_fingerprint(key.public_key())
+        .map_err(|e| CovenError::Api(format!("SSH fingerprint error: {}", e)))?;
+
+    Ok(fingerprint)
+}
+
+// ============================================================================
 // Callback Traits
 // ============================================================================
 

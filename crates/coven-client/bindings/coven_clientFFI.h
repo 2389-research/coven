@@ -428,6 +428,11 @@ void uniffi_coven_client_fn_init_callback_vtable_statecallback(UniffiVTableCallb
 void uniffi_coven_client_fn_init_callback_vtable_streamcallback(UniffiVTableCallbackInterfaceStreamCallback* _Nonnull vtable
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_FN_FUNC_GENERATE_SSH_KEY
+#define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_FN_FUNC_GENERATE_SSH_KEY
+RustBuffer uniffi_coven_client_fn_func_generate_ssh_key(RustBuffer key_path, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_FFI_COVEN_CLIENT_RUSTBUFFER_ALLOC
 #define UNIFFI_FFIDEF_FFI_COVEN_CLIENT_RUSTBUFFER_ALLOC
 RustBuffer ffi_coven_client_rustbuffer_alloc(uint64_t size, RustCallStatus *_Nonnull out_status
@@ -706,6 +711,12 @@ void ffi_coven_client_rust_future_free_void(uint64_t handle
 #ifndef UNIFFI_FFIDEF_FFI_COVEN_CLIENT_RUST_FUTURE_COMPLETE_VOID
 #define UNIFFI_FFIDEF_FFI_COVEN_CLIENT_RUST_FUTURE_COMPLETE_VOID
 void ffi_coven_client_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_FUNC_GENERATE_SSH_KEY
+#define UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_FUNC_GENERATE_SSH_KEY
+uint16_t uniffi_coven_client_checksum_func_generate_ssh_key(void
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_COVEN_CLIENT_CHECKSUM_METHOD_COVENCLIENT_APPROVE_TOOL
