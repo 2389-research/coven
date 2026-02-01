@@ -1,0 +1,24 @@
+# ABOUTME: Dockerfile for E2E test runner
+# ABOUTME: Runs scenario tests against the coven ecosystem
+
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tests
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    httpx \
+    pytest \
+    pytest-asyncio \
+    rich
+
+# Copy test files
+COPY test_runner.py ./
+COPY scenarios/ ./scenarios/
+
+CMD ["python", "test_runner.py"]

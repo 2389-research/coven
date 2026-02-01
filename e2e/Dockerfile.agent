@@ -1,0 +1,45 @@
+# ABOUTME: Dockerfile for coven-agent in E2E tests
+# ABOUTME: Builds Rust agent binary for container testing
+
+FROM rustlang/rust:nightly-bookworm AS builder
+
+WORKDIR /app
+
+# Install protobuf compiler with well-known types
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler \
+    libprotobuf-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY proto ./proto
+
+# Build release binary
+RUN cargo build --release -p coven-agent
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /app/target/release/coven-agent /usr/local/bin/coven-agent
+
+# Create workspace directory
+RUN mkdir -p /workspace /app/.coven
+
+# Generate SSH key for agent
+RUN mkdir -p /root/.config/coven && \
+    ssh-keygen -t ed25519 -f /root/.config/coven/agent_key -N "" -q
+
+WORKDIR /workspace
+
+CMD ["coven-agent"]

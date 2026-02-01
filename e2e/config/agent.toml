@@ -1,0 +1,7 @@
+# ABOUTME: Agent config for E2E standalone agent
+# ABOUTME: Uses mux backend (no Claude CLI needed)
+
+gateway_url = "http://gateway:50051"
+agent_id = "e2e-standalone"
+backend = "mux"
+working_directory = "/workspace"

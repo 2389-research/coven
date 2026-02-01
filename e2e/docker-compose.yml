@@ -1,0 +1,89 @@
+# ABOUTME: Docker Compose for E2E testing of coven ecosystem
+# ABOUTME: Starts gateway, agents, and runs scenario tests
+
+services:
+  # Gateway - the control plane
+  gateway:
+    build:
+      context: ../../coven-gateway
+      dockerfile: Dockerfile
+    container_name: coven-e2e-gateway
+    environment:
+      - COVEN_CONFIG=/app/config.yaml
+    volumes:
+      - ./config/gateway.yaml:/app/config.yaml:ro
+      - gateway-data:/app/data
+    ports:
+      - "50051:50051"
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - coven-e2e
+
+  # Standalone agent with direct-cli backend (needs Claude CLI)
+  agent-standalone:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile.agent
+    container_name: coven-e2e-agent-standalone
+    environment:
+      - COVEN_GATEWAY_URL=http://gateway:50051
+      - COVEN_AGENT_ID=e2e-standalone
+      - COVEN_BACKEND=mux
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ./config/agent.toml:/app/.coven/agent.toml:ro
+      - ./workspaces/standalone:/workspace
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - coven-e2e
+
+  # Swarm supervisor with test workspaces
+  swarm-supervisor:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile.swarm
+    container_name: coven-e2e-swarm
+    environment:
+      - COVEN_GATEWAY_URL=http://gateway:50051
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ./config/swarm.toml:/root/.config/coven/swarm.toml:ro
+      - ./workspaces:/workspaces
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - coven-e2e
+
+  # Test runner
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test-runner
+    container_name: coven-e2e-tests
+    environment:
+      - GATEWAY_URL=http://gateway:8080
+      - GATEWAY_GRPC=gateway:50051
+    volumes:
+      - ./scenarios:/scenarios:ro
+      - ./results:/results
+    depends_on:
+      - gateway
+      - agent-standalone
+      - swarm-supervisor
+    networks:
+      - coven-e2e
+
+networks:
+  coven-e2e:
+    driver: bridge
+
+volumes:
+  gateway-data:

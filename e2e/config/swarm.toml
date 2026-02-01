@@ -1,0 +1,7 @@
+# ABOUTME: Swarm config for E2E swarm supervisor
+# ABOUTME: Manages multiple test workspaces
+
+gateway_url = "http://gateway:50051"
+prefix = "e2e-swarm"
+working_directory = "/workspaces"
+default_backend = "mux"

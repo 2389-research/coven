@@ -1,0 +1,11 @@
+# ABOUTME: Gitignore for E2E tests
+# ABOUTME: Excludes test results and Docker volumes
+
+# Test results
+results/
+
+# Docker volumes
+*.db
+
+# Workspaces content (except READMEs)
+workspaces/**/!README.md

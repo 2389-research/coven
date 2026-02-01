@@ -1,0 +1,39 @@
+# ABOUTME: Docker ignore file for coven monorepo
+# ABOUTME: Excludes build artifacts and unnecessary files from Docker build context
+
+# Rust build artifacts (the big one!)
+target/
+
+# Git
+.git/
+.gitignore
+.gitmodules
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation and non-essential files
+*.md
+!README.md
+docs/
+
+# Test fixtures and scratch files
+.scratch/
+fixtures/
+
+# E2E test results
+e2e/results/
+
+# macOS
+.DS_Store
+
+# Local configuration
+.env
+*.local
+
+# Logs
+*.log
