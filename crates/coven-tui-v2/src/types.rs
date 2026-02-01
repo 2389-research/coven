@@ -154,7 +154,6 @@ pub enum ApprovalDecision {
     ApproveAll,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

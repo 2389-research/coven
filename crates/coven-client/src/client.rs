@@ -709,7 +709,7 @@ impl CovenClient {
         // arrives before we're listening
         let stream_request = StreamEventsRequest {
             conversation_key: agent_id.clone(),
-            since_event_id: None,  // We'll filter by timestamp instead
+            since_event_id: None, // We'll filter by timestamp instead
         };
 
         let stream = match client.stream_events(stream_request).await {
@@ -738,7 +738,8 @@ impl CovenClient {
         // Track response state for completion detection
         let mut _saw_user_message = false;
         let mut saw_agent_response = false;
-        let mut idle_timeout = std::pin::pin!(tokio::time::sleep(std::time::Duration::from_secs(60)));
+        let mut idle_timeout =
+            std::pin::pin!(tokio::time::sleep(std::time::Duration::from_secs(60)));
 
         loop {
             tokio::select! {
@@ -810,7 +811,6 @@ impl CovenClient {
         }
     }
 
-
     /// Run the gRPC streaming request without auth
     async fn run_grpc_stream_no_auth(
         state: Arc<RwLock<ClientState>>,
@@ -829,7 +829,7 @@ impl CovenClient {
         // arrives before we're listening
         let stream_request = StreamEventsRequest {
             conversation_key: agent_id.clone(),
-            since_event_id: None,  // We'll filter by timestamp instead
+            since_event_id: None, // We'll filter by timestamp instead
         };
 
         let stream = match client.stream_events(stream_request).await {
@@ -858,7 +858,8 @@ impl CovenClient {
         // Track response state for completion detection
         let mut _saw_user_message = false;
         let mut saw_agent_response = false;
-        let mut idle_timeout = std::pin::pin!(tokio::time::sleep(std::time::Duration::from_secs(60)));
+        let mut idle_timeout =
+            std::pin::pin!(tokio::time::sleep(std::time::Duration::from_secs(60)));
 
         loop {
             tokio::select! {
@@ -1048,11 +1049,11 @@ impl CovenClient {
                         "tool_result" => {
                             return (false, false); // Skip tool results for now
                         }
-                        "error" => {
-                            StreamEvent::Error {
-                                message: ledger_event.text.unwrap_or_else(|| "Unknown error".to_string()),
-                            }
-                        }
+                        "error" => StreamEvent::Error {
+                            message: ledger_event
+                                .text
+                                .unwrap_or_else(|| "Unknown error".to_string()),
+                        },
                         "done" | "stream_done" => {
                             Self::finalize_stream_internal(&mut state_guard, agent_id);
                             if let Some(cb) = &state_guard.stream_callback {

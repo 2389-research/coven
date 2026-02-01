@@ -149,10 +149,10 @@ impl Bridge {
         }
 
         // Check response conditions
-        if !msg_info.context.should_respond(
-            self.config.bridge.response_mode,
-            msg_info.is_mention,
-        ) {
+        if !msg_info
+            .context
+            .should_respond(self.config.bridge.response_mode, msg_info.is_mention)
+        {
             debug!(
                 channel_id = %channel_id,
                 "Message doesn't require response (response_mode={:?}, is_mention={})",
@@ -187,12 +187,7 @@ impl Bridge {
         // Process the message
         let thread_ts = msg_info.reply_thread_ts(self.config.bridge.thread_replies);
         if let Err(e) = self
-            .process_message(
-                channel_id,
-                thread_ts.as_deref(),
-                &binding,
-                &text,
-            )
+            .process_message(channel_id, thread_ts.as_deref(), &binding, &text)
             .await
         {
             error!(error = %e, channel_id = %channel_id, "Failed to process message");

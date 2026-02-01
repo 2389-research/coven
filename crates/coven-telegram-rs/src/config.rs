@@ -127,9 +127,7 @@ impl Config {
     /// Validate that required fields are present and properly formatted.
     fn validate(&self) -> Result<()> {
         if self.telegram.bot_token.is_empty() {
-            return Err(BridgeError::Config(
-                "telegram.bot_token is required".into(),
-            ));
+            return Err(BridgeError::Config("telegram.bot_token is required".into()));
         }
         // Telegram bot tokens have format: <bot_id>:<token_string>
         if !self.telegram.bot_token.contains(':') {

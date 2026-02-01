@@ -30,11 +30,7 @@ pub async fn run(gateway: &str, token: Option<&str>, cmd: PrincipalsCommand) -> 
     }
 }
 
-async fn list_principals(
-    gateway: &str,
-    token: &str,
-    type_filter: Option<String>,
-) -> Result<()> {
+async fn list_principals(gateway: &str, token: &str, type_filter: Option<String>) -> Result<()> {
     let config = ChannelConfig::new(gateway).without_keep_alive();
     let channel = coven_grpc::create_channel(&config).await?;
 

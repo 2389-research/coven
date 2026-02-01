@@ -160,6 +160,11 @@ pub async fn create_simple_channel(address: &str) -> Result<Channel, GrpcClientE
 mod tests {
     use super::*;
 
+    /// Install crypto provider for TLS tests (idempotent)
+    fn ensure_crypto_provider() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+
     #[test]
     fn test_default_keep_alive() {
         let ka = KeepAliveConfig::default();
@@ -458,6 +463,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_channel_with_tls_normalized_scheme() {
+        ensure_crypto_provider();
         // Start plaintext server - TLS client will fail handshake
         let server = PlaintextServer::start();
         let addr = format!("http://127.0.0.1:{}", server.port);
@@ -487,6 +493,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_channel_https_url_direct() {
+        ensure_crypto_provider();
         // Start plaintext server - TLS client will fail handshake
         let server = PlaintextServer::start();
         let addr = format!("https://127.0.0.1:{}", server.port);

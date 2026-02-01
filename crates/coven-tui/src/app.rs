@@ -1,9 +1,9 @@
 // ABOUTME: Central application state and event loop.
 // ABOUTME: Holds all UI state and coordinates between components.
 
-use crossterm::event::{KeyCode, KeyModifiers};
 use coven_client::{Agent, ConnectionStatus, CovenClient, UsageInfo};
 use coven_ssh::default_client_key_path;
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -142,7 +142,8 @@ impl App {
 
                         // Try to auto-register
                         if let Some(key_path) = default_client_key_path() {
-                            if let Ok(fingerprint) = registration::get_fingerprint_from_key(&key_path)
+                            if let Ok(fingerprint) =
+                                registration::get_fingerprint_from_key(&key_path)
                             {
                                 let display_name = format!(
                                     "coven-tui-{}",

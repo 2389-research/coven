@@ -20,9 +20,8 @@ impl CovenSlackClient {
     pub async fn new(config: &SlackConfig) -> Result<Self> {
         info!("Initializing Slack client");
 
-        let connector = SlackClientHyperConnector::new().map_err(|e| {
-            BridgeError::Slack(format!("Failed to create Slack connector: {}", e))
-        })?;
+        let connector = SlackClientHyperConnector::new()
+            .map_err(|e| BridgeError::Slack(format!("Failed to create Slack connector: {}", e)))?;
         let client = Arc::new(slack_morphism::SlackClient::new(connector));
 
         let bot_token_value: SlackApiTokenValue = config.bot_token.clone().into();
@@ -158,7 +157,10 @@ pub struct SlackMessageInfo {
 
 impl SlackMessageInfo {
     /// Create message info from a push event.
-    pub fn from_message_event(event: &SlackMessageEvent, bot_user_id: &SlackUserId) -> Option<Self> {
+    pub fn from_message_event(
+        event: &SlackMessageEvent,
+        bot_user_id: &SlackUserId,
+    ) -> Option<Self> {
         let channel_id = event.origin.channel.as_ref()?.to_string();
         let user_id = event.sender.user.as_ref()?.to_string();
         let text = event.content.as_ref()?.text.as_ref()?.clone();
@@ -170,8 +172,7 @@ impl SlackMessageInfo {
         let is_mention = text.contains(&mention_pattern);
 
         let is_dm = channel_id.starts_with('D') || channel_id.starts_with('G');
-        let context =
-            SlackContext::from_event(channel_id.clone(), thread_ts.clone(), is_dm);
+        let context = SlackContext::from_event(channel_id.clone(), thread_ts.clone(), is_dm);
 
         Some(Self {
             channel_id,

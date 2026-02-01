@@ -121,11 +121,24 @@ impl UsageInfo {
 /// Events received during streaming response
 #[derive(Debug, Clone)]
 pub enum StreamEvent {
-    Text { content: String },
-    Thinking { content: String },
-    ToolUse { name: String, input: String },
-    ToolResult { tool_id: String, result: String },
-    ToolState { state: String, detail: String },
+    Text {
+        content: String,
+    },
+    Thinking {
+        content: String,
+    },
+    ToolUse {
+        name: String,
+        input: String,
+    },
+    ToolResult {
+        tool_id: String,
+        result: String,
+    },
+    ToolState {
+        state: String,
+        detail: String,
+    },
     ToolApprovalRequest {
         agent_id: String,
         request_id: String,
@@ -133,9 +146,13 @@ pub enum StreamEvent {
         tool_name: String,
         input_json: String,
     },
-    Usage { info: UsageInfo },
+    Usage {
+        info: UsageInfo,
+    },
     Done,
-    Error { message: String },
+    Error {
+        message: String,
+    },
 }
 
 /// Gateway connection status

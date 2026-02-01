@@ -3,14 +3,19 @@
 
 use crate::error::{BridgeError, Result};
 use coven_proto::client::ClientServiceClient;
-use coven_proto::{AgentInfo, ApproveToolRequest, ClientSendMessageRequest, ClientSendMessageResponse, ClientStreamEvent, ListAgentsRequest, StreamEventsRequest};
+use coven_proto::{
+    AgentInfo, ApproveToolRequest, ClientSendMessageRequest, ClientSendMessageResponse,
+    ClientStreamEvent, ListAgentsRequest, StreamEventsRequest,
+};
 use tonic::transport::Channel;
 use tonic::{Request, Status};
 use tracing::{debug, info};
 
 /// gRPC client for communicating with coven-gateway's ClientService.
 pub struct GatewayClient {
-    client: ClientServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>,
+    client: ClientServiceClient<
+        tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>,
+    >,
 }
 
 /// Interceptor that adds Bearer token authentication to outgoing requests.
@@ -50,7 +55,10 @@ impl GatewayClient {
     /// List all available agents from the gateway.
     pub async fn list_agents(&mut self) -> Result<Vec<AgentInfo>> {
         debug!("Listing agents");
-        let response = self.client.list_agents(ListAgentsRequest { workspace: None }).await?;
+        let response = self
+            .client
+            .list_agents(ListAgentsRequest { workspace: None })
+            .await?;
         Ok(response.into_inner().agents)
     }
 

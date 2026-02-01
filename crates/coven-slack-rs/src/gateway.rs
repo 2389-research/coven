@@ -13,8 +13,9 @@ use tracing::{debug, info};
 
 /// gRPC client for communicating with coven-gateway's ClientService.
 pub struct GatewayClient {
-    client:
-        ClientServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>,
+    client: ClientServiceClient<
+        tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>,
+    >,
 }
 
 /// Interceptor that adds Bearer token authentication to outgoing requests.

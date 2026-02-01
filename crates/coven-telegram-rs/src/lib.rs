@@ -42,19 +42,17 @@ pub async fn run(config_path: Option<PathBuf>) -> anyhow::Result<()> {
 
     // Create the message handler
     let bridge_for_handler = Arc::clone(&bridge);
-    let handler = Update::filter_message().endpoint(
-        move |msg: Message, _bot: Bot| {
-            let bridge = Arc::clone(&bridge_for_handler);
-            async move {
-                if let Some(msg_info) = TelegramMessageInfo::from_message(&msg, bridge.telegram_bot()) {
-                    if let Err(e) = bridge.handle_message(msg_info).await {
-                        error!(error = %e, "Failed to handle message");
-                    }
+    let handler = Update::filter_message().endpoint(move |msg: Message, _bot: Bot| {
+        let bridge = Arc::clone(&bridge_for_handler);
+        async move {
+            if let Some(msg_info) = TelegramMessageInfo::from_message(&msg, bridge.telegram_bot()) {
+                if let Err(e) = bridge.handle_message(msg_info).await {
+                    error!(error = %e, "Failed to handle message");
                 }
-                Ok::<(), std::convert::Infallible>(())
             }
-        },
-    );
+            Ok::<(), std::convert::Infallible>(())
+        }
+    });
 
     // Create and run the dispatcher
     info!("Starting Long Polling dispatcher");

@@ -7,11 +7,11 @@ use super::app::{App, AppStatus};
 use super::messages::{Role, ToolStatus};
 use super::theme;
 use ratatui::{
-    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
+    Frame,
 };
 
 /// Main UI render function

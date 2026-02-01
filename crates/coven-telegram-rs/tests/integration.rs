@@ -403,12 +403,36 @@ fn test_public_exports() {
     }
 
     // Ensure the types exist and are accessible
-    assert_eq!(std::any::type_name::<Bridge>(), "coven_telegram_rs::bridge::Bridge");
-    assert_eq!(std::any::type_name::<Config>(), "coven_telegram_rs::config::Config");
-    assert_eq!(std::any::type_name::<TelegramContext>(), "coven_telegram_rs::context::TelegramContext");
-    assert_eq!(std::any::type_name::<ChatBinding>(), "coven_telegram_rs::bridge::ChatBinding");
-    assert_eq!(std::any::type_name::<GatewayClient>(), "coven_telegram_rs::gateway::GatewayClient");
-    assert_eq!(std::any::type_name::<CovenTelegramBot>(), "coven_telegram_rs::telegram::CovenTelegramBot");
-    assert_eq!(std::any::type_name::<TelegramMessageInfo>(), "coven_telegram_rs::telegram::TelegramMessageInfo");
-    assert_eq!(std::any::type_name::<BridgeError>(), "coven_telegram_rs::error::BridgeError");
+    assert_eq!(
+        std::any::type_name::<Bridge>(),
+        "coven_telegram_rs::bridge::Bridge"
+    );
+    assert_eq!(
+        std::any::type_name::<Config>(),
+        "coven_telegram_rs::config::Config"
+    );
+    assert_eq!(
+        std::any::type_name::<TelegramContext>(),
+        "coven_telegram_rs::context::TelegramContext"
+    );
+    assert_eq!(
+        std::any::type_name::<ChatBinding>(),
+        "coven_telegram_rs::bridge::ChatBinding"
+    );
+    assert_eq!(
+        std::any::type_name::<GatewayClient>(),
+        "coven_telegram_rs::gateway::GatewayClient"
+    );
+    assert_eq!(
+        std::any::type_name::<CovenTelegramBot>(),
+        "coven_telegram_rs::telegram::CovenTelegramBot"
+    );
+    assert_eq!(
+        std::any::type_name::<TelegramMessageInfo>(),
+        "coven_telegram_rs::telegram::TelegramMessageInfo"
+    );
+    assert_eq!(
+        std::any::type_name::<BridgeError>(),
+        "coven_telegram_rs::error::BridgeError"
+    );
 }

@@ -25,15 +25,24 @@ pub enum TuiEvent {
     /// Agent spawned
     AgentSpawned { workspace: String, pid: u32 },
     /// Agent registered with gateway
-    AgentRegistered { workspace: String, instance_id: String },
+    AgentRegistered {
+        workspace: String,
+        instance_id: String,
+    },
     /// Agent received a message
-    AgentMessage { workspace: String, request_id: String },
+    AgentMessage {
+        workspace: String,
+        request_id: String,
+    },
     /// Agent log output
     AgentLog { workspace: String, line: String },
     /// Agent error
     AgentError { workspace: String, error: String },
     /// Agent exited
-    AgentExited { workspace: String, code: Option<i32> },
+    AgentExited {
+        workspace: String,
+        code: Option<i32>,
+    },
     /// Socket command received
     SocketCommand { command: String },
     /// System message
@@ -334,10 +343,10 @@ fn render_ui(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Header
-            Constraint::Length(5),  // Agent status
-            Constraint::Min(10),    // Logs
-            Constraint::Length(1),  // Help
+            Constraint::Length(3), // Header
+            Constraint::Length(5), // Agent status
+            Constraint::Min(10),   // Logs
+            Constraint::Length(1), // Help
         ])
         .split(frame.area());
 
@@ -369,7 +378,10 @@ fn render_header(frame: &mut Frame, area: Rect, agent_count: usize, start_time: 
             Style::default().fg(Color::Green),
         ),
         Span::raw(" | "),
-        Span::styled(format!("uptime {}", uptime), Style::default().fg(Color::Gray)),
+        Span::styled(
+            format!("uptime {}", uptime),
+            Style::default().fg(Color::Gray),
+        ),
     ]);
 
     let block = Block::default()
@@ -434,7 +446,13 @@ fn render_agents(frame: &mut Frame, area: Rect, agents: &HashMap<String, AgentSt
     frame.render_widget(list, area);
 }
 
-fn render_logs(frame: &mut Frame, area: Rect, logs: &[LogEntry], scroll_offset: usize, start_time: Instant) {
+fn render_logs(
+    frame: &mut Frame,
+    area: Rect,
+    logs: &[LogEntry],
+    scroll_offset: usize,
+    start_time: Instant,
+) {
     let inner_height = area.height.saturating_sub(2) as usize;
     let total_logs = logs.len();
 

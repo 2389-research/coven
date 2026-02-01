@@ -79,10 +79,7 @@ impl CovenTelegramBot {
 
         let message = request.await?;
 
-        debug!(
-            message_id = message.id.0,
-            "Message sent successfully"
-        );
+        debug!(message_id = message.id.0, "Message sent successfully");
         Ok(message)
     }
 
@@ -132,7 +129,7 @@ impl TelegramMessageInfo {
         let text = msg.text()?.to_string();
         let message_id = msg.id;
         // thread_id in teloxide is Option<ThreadId> where ThreadId wraps MessageId which wraps i32
-        let thread_id: Option<i32> = msg.thread_id.map(|t| t.0.0);
+        let thread_id: Option<i32> = msg.thread_id.map(|t| t.0 .0);
 
         // Check for bot mention
         let is_mention = bot.is_mentioned(&text);

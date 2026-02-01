@@ -23,6 +23,17 @@ enum Commands {
     /// First-time setup wizard
     Init,
 
+    /// Run a local gateway server (super-trusted mode, no auth)
+    Serve {
+        /// gRPC listen address
+        #[arg(long, default_value = "127.0.0.1:50051")]
+        grpc_addr: String,
+
+        /// SQLite database path
+        #[arg(long)]
+        db: Option<PathBuf>,
+    },
+
     /// Link this device to a coven-gateway
     Link {
         /// Gateway URL (e.g., https://coven.example.com or http://localhost:8080)
@@ -366,6 +377,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Init => run_init(),
+        Commands::Serve { grpc_addr, db } => run_serve(grpc_addr, db).await,
         Commands::Link { gateway, name, key } => run_link(gateway, name, key).await,
         Commands::Swarm(cmd) => run_swarm(cmd).await,
         Commands::Agent(cmd) => run_agent(cmd).await,
@@ -385,6 +397,19 @@ fn run_init() -> Result<()> {
     coven_swarm::run_init()
 }
 
+/// Run the local gateway server
+async fn run_serve(grpc_addr: String, db: Option<PathBuf>) -> Result<()> {
+    let config = coven_serve::ServeConfig {
+        grpc_addr,
+        db_path: db.unwrap_or_else(|| {
+            dirs::config_dir()
+                .map(|p| p.join("coven").join("local.db"))
+                .unwrap_or_else(|| PathBuf::from("local.db"))
+        }),
+    };
+    coven_serve::run(config).await
+}
+
 /// Link this device to a gateway
 async fn run_link(gateway: String, name: Option<String>, key: Option<String>) -> Result<()> {
     coven_link::run(gateway, name, key).await
@@ -393,9 +418,7 @@ async fn run_link(gateway: String, name: Option<String>, key: Option<String>) ->
 /// Handle swarm subcommands
 async fn run_swarm(cmd: SwarmCommands) -> Result<()> {
     match cmd {
-        SwarmCommands::Init => {
-            coven_swarm::run_init()
-        }
+        SwarmCommands::Init => coven_swarm::run_init(),
         SwarmCommands::Start { config, headless } => {
             let options = coven_swarm::SupervisorOptions {
                 config_path: config,
@@ -404,9 +427,8 @@ async fn run_swarm(cmd: SwarmCommands) -> Result<()> {
             coven_swarm::run_supervisor(options).await
         }
         SwarmCommands::Stop => {
-            let config = coven_swarm_core::Config::load(
-                &coven_swarm_core::Config::default_path()?,
-            )?;
+            let config =
+                coven_swarm_core::Config::load(&coven_swarm_core::Config::default_path()?)?;
 
             match coven_swarm::SocketClient::connect(&config.prefix).await {
                 Ok(mut client) => {
@@ -422,9 +444,8 @@ async fn run_swarm(cmd: SwarmCommands) -> Result<()> {
             }
         }
         SwarmCommands::Status => {
-            let config = coven_swarm_core::Config::load(
-                &coven_swarm_core::Config::default_path()?,
-            )?;
+            let config =
+                coven_swarm_core::Config::load(&coven_swarm_core::Config::default_path()?)?;
 
             match coven_swarm::SocketClient::connect(&config.prefix).await {
                 Ok(mut client) => {
@@ -507,7 +528,11 @@ async fn run_admin(cmd: AdminCommands) -> Result<()> {
         AdminCommands::Me { gateway, token } => {
             coven_admin::run_command(coven_admin::Command::Me, gateway, token).await
         }
-        AdminCommands::Agents { gateway, token, command } => {
+        AdminCommands::Agents {
+            gateway,
+            token,
+            command,
+        } => {
             let admin_cmd = match command {
                 AdminAgentsCommand::List { workspace } => {
                     coven_admin::Command::Agents(coven_admin::AgentsCommand::List { workspace })
@@ -515,44 +540,63 @@ async fn run_admin(cmd: AdminCommands) -> Result<()> {
             };
             coven_admin::run_command(admin_cmd, gateway, token).await
         }
-        AdminCommands::Bindings { gateway, token, command } => {
+        AdminCommands::Bindings {
+            gateway,
+            token,
+            command,
+        } => {
             let admin_cmd = match command {
                 AdminBindingsCommand::List => {
                     coven_admin::Command::Bindings(coven_admin::BindingsCommand::List)
                 }
-                AdminBindingsCommand::Create { frontend, channel_id, agent_id } => {
-                    coven_admin::Command::Bindings(coven_admin::BindingsCommand::Create {
-                        frontend,
-                        channel_id,
-                        agent_id,
-                    })
-                }
+                AdminBindingsCommand::Create {
+                    frontend,
+                    channel_id,
+                    agent_id,
+                } => coven_admin::Command::Bindings(coven_admin::BindingsCommand::Create {
+                    frontend,
+                    channel_id,
+                    agent_id,
+                }),
                 AdminBindingsCommand::Delete { id } => {
                     coven_admin::Command::Bindings(coven_admin::BindingsCommand::Delete { id })
                 }
             };
             coven_admin::run_command(admin_cmd, gateway, token).await
         }
-        AdminCommands::Principals { gateway, token, command } => {
+        AdminCommands::Principals {
+            gateway,
+            token,
+            command,
+        } => {
             let admin_cmd = match command {
                 AdminPrincipalsCommand::List { r#type } => {
-                    coven_admin::Command::Principals(coven_admin::PrincipalsCommand::List { r#type })
-                }
-                AdminPrincipalsCommand::Create { r#type, name, fingerprint, role } => {
-                    coven_admin::Command::Principals(coven_admin::PrincipalsCommand::Create {
+                    coven_admin::Command::Principals(coven_admin::PrincipalsCommand::List {
                         r#type,
-                        name,
-                        fingerprint,
-                        role,
                     })
                 }
+                AdminPrincipalsCommand::Create {
+                    r#type,
+                    name,
+                    fingerprint,
+                    role,
+                } => coven_admin::Command::Principals(coven_admin::PrincipalsCommand::Create {
+                    r#type,
+                    name,
+                    fingerprint,
+                    role,
+                }),
                 AdminPrincipalsCommand::Delete { id } => {
                     coven_admin::Command::Principals(coven_admin::PrincipalsCommand::Delete { id })
                 }
             };
             coven_admin::run_command(admin_cmd, gateway, token).await
         }
-        AdminCommands::Token { gateway, token, command } => {
+        AdminCommands::Token {
+            gateway,
+            token,
+            command,
+        } => {
             let admin_cmd = match command {
                 AdminTokenCommand::Create { principal_id, ttl } => {
                     coven_admin::Command::Token(coven_admin::TokenCommand::Create {
@@ -718,8 +762,12 @@ async fn run_pack(cmd: PackCommands) -> Result<()> {
             Ok(())
         }
         PackCommands::Run { pack } => {
-            let binary_path = find_pack_binary(&pack)
-                .with_context(|| format!("Pack '{}' not found. Try building it first with: cargo build -p {}-pack", pack, pack))?;
+            let binary_path = find_pack_binary(&pack).with_context(|| {
+                format!(
+                    "Pack '{}' not found. Try building it first with: cargo build -p {}-pack",
+                    pack, pack
+                )
+            })?;
 
             println!("Starting pack: {}", pack);
             println!("Binary: {}", binary_path.display());
@@ -730,7 +778,9 @@ async fn run_pack(cmd: PackCommands) -> Result<()> {
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit())
                 .status()
-                .with_context(|| format!("Failed to execute pack binary: {}", binary_path.display()))?;
+                .with_context(|| {
+                    format!("Failed to execute pack binary: {}", binary_path.display())
+                })?;
 
             if !status.success() {
                 let code = status.code().unwrap_or(1);

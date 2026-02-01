@@ -2,11 +2,11 @@
 // ABOUTME: Routes tool calls through gRPC to the gateway for pack execution.
 
 use async_trait::async_trait;
-use coven_proto::{AgentMessage, ExecutePackTool, PackToolResult, ToolDefinition, agent_message};
+use coven_proto::{agent_message, AgentMessage, ExecutePackTool, PackToolResult, ToolDefinition};
 use mux::tool::{Tool, ToolResult};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::{info, warn};
 
 /// Timeout for pack tool execution (5 minutes)

@@ -47,9 +47,11 @@ impl MatrixClient {
 
         let user_id = client
             .user_id()
-            .ok_or_else(|| BridgeError::Matrix(matrix_sdk::Error::UnknownError(
-                "No user ID after login".into(),
-            )))?
+            .ok_or_else(|| {
+                BridgeError::Matrix(matrix_sdk::Error::UnknownError(
+                    "No user ID after login".into(),
+                ))
+            })?
             .to_owned();
 
         info!(user_id = %user_id, "Matrix login successful");
@@ -66,9 +68,10 @@ impl MatrixClient {
     }
 
     pub async fn send_text(&self, room_id: &OwnedRoomId, text: &str) -> Result<()> {
-        let room = self.client.get_room(room_id).ok_or_else(|| {
-            BridgeError::Config(format!("Room not found: {}", room_id))
-        })?;
+        let room = self
+            .client
+            .get_room(room_id)
+            .ok_or_else(|| BridgeError::Config(format!("Room not found: {}", room_id)))?;
 
         if room.state() == RoomState::Joined {
             let content = RoomMessageEventContent::text_plain(text);
@@ -82,9 +85,10 @@ impl MatrixClient {
     }
 
     pub async fn send_html(&self, room_id: &OwnedRoomId, plain: &str, html: &str) -> Result<()> {
-        let room = self.client.get_room(room_id).ok_or_else(|| {
-            BridgeError::Config(format!("Room not found: {}", room_id))
-        })?;
+        let room = self
+            .client
+            .get_room(room_id)
+            .ok_or_else(|| BridgeError::Config(format!("Room not found: {}", room_id)))?;
 
         if room.state() == RoomState::Joined {
             let content = RoomMessageEventContent::text_html(plain, html);
@@ -98,9 +102,10 @@ impl MatrixClient {
     }
 
     pub async fn set_typing(&self, room_id: &OwnedRoomId, typing: bool) -> Result<()> {
-        let room = self.client.get_room(room_id).ok_or_else(|| {
-            BridgeError::Config(format!("Room not found: {}", room_id))
-        })?;
+        let room = self
+            .client
+            .get_room(room_id)
+            .ok_or_else(|| BridgeError::Config(format!("Room not found: {}", room_id)))?;
 
         if room.state() == RoomState::Joined {
             room.typing_notice(typing).await?;

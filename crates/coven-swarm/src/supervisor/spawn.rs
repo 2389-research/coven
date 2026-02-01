@@ -83,10 +83,12 @@ impl AgentProcess {
                 let mut lines = reader.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     if let Some(ref tx) = tx {
-                        let _ = tx.send(TuiEvent::AgentLog {
-                            workspace: ws.clone(),
-                            line: line.clone(),
-                        }).await;
+                        let _ = tx
+                            .send(TuiEvent::AgentLog {
+                                workspace: ws.clone(),
+                                line: line.clone(),
+                            })
+                            .await;
                     } else {
                         eprintln!("[{}] {}", ws, line);
                     }
@@ -102,10 +104,12 @@ impl AgentProcess {
                 let mut lines = reader.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     if let Some(ref tx) = tx {
-                        let _ = tx.send(TuiEvent::AgentLog {
-                            workspace: ws.clone(),
-                            line: line.clone(),
-                        }).await;
+                        let _ = tx
+                            .send(TuiEvent::AgentLog {
+                                workspace: ws.clone(),
+                                line: line.clone(),
+                            })
+                            .await;
                     } else {
                         eprintln!("[{}] {}", ws, line);
                     }

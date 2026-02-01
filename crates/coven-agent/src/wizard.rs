@@ -5,15 +5,15 @@ use anyhow::Result;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
+    Frame, Terminal,
 };
 use std::io;
 use std::path::PathBuf;
@@ -134,18 +134,14 @@ impl ConfigScope {
     fn path_preview(&self, name: &str) -> String {
         match self {
             ConfigScope::Project => ".coven/agent.toml".to_string(),
-            ConfigScope::UserLibrary => {
-                xdg_config_dir()
-                    .map(|p| p.join("agents").join(format!("{}.toml", name.trim())))
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_else(|| format!("~/.config/coven/agents/{}.toml", name.trim()))
-            }
-            ConfigScope::UserDefault => {
-                xdg_config_dir()
-                    .map(|p| p.join("agent.toml"))
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_else(|| "~/.config/coven/agent.toml".to_string())
-            }
+            ConfigScope::UserLibrary => xdg_config_dir()
+                .map(|p| p.join("agents").join(format!("{}.toml", name.trim())))
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| format!("~/.config/coven/agents/{}.toml", name.trim())),
+            ConfigScope::UserDefault => xdg_config_dir()
+                .map(|p| p.join("agent.toml"))
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "~/.config/coven/agent.toml".to_string()),
         }
     }
 }
@@ -697,13 +693,14 @@ fn draw_name_step(f: &mut Frame, app: &WizardApp, area: Rect) {
         .style(Style::default().fg(Color::White));
     f.render_widget(label, chunks[0]);
 
-    let input_block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(if app.error_message.is_some() {
-            Style::default().fg(Color::Red)
-        } else {
-            Style::default().fg(Color::Green)
-        });
+    let input_block =
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(if app.error_message.is_some() {
+                Style::default().fg(Color::Red)
+            } else {
+                Style::default().fg(Color::Green)
+            });
 
     let input = Paragraph::new(format!("{}_", app.name))
         .style(Style::default().fg(Color::White))
@@ -838,8 +835,7 @@ fn draw_server_step(f: &mut Frame, app: &WizardApp, area: Rect) {
         .block(port_block);
     f.render_widget(port_input, chunks[4]);
 
-    let help = Paragraph::new("[Tab//] Switch field")
-        .style(Style::default().fg(Color::DarkGray));
+    let help = Paragraph::new("[Tab//] Switch field").style(Style::default().fg(Color::DarkGray));
     f.render_widget(help, chunks[5]);
 }
 
@@ -978,16 +974,16 @@ fn draw_review_step(f: &mut Frame, app: &WizardApp, area: Rect) {
         ("Name:", app.name.clone()),
         ("Backend:", app.backend.as_str().to_string()),
         ("Server:", app.server_url()),
-        (
-            "Capabilities:",
-            app.selected_capabilities().join(", "),
-        ),
+        ("Capabilities:", app.selected_capabilities().join(", ")),
         ("Location:", app.scope.path_preview(&app.name)),
     ];
 
     for (idx, (label, value)) in fields.iter().enumerate() {
         let line = Line::from(vec![
-            Span::styled(format!("  {:14}", label), Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!("  {:14}", label),
+                Style::default().fg(Color::DarkGray),
+            ),
             Span::styled(value, Style::default().fg(Color::Cyan)),
         ]);
         f.render_widget(Paragraph::new(line), chunks[2 + idx]);

@@ -1,8 +1,8 @@
 // ABOUTME: Interactive TUI setup wizard for first-time users.
 // ABOUTME: Form-based configuration for gateway host/port and theme selection.
 
-use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use coven_grpc::ChannelConfig;
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use std::time::Duration;

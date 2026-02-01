@@ -11,11 +11,11 @@ use tokio::sync::RwLock;
 use tracing::info;
 
 pub enum Command {
-    Bind(String),      // /coven bind <agent-id>
-    Unbind,            // /coven unbind
-    Status,            // /coven status
-    Agents,            // /coven agents
-    Help,              // /coven help
+    Bind(String), // /coven bind <agent-id>
+    Unbind,       // /coven unbind
+    Status,       // /coven status
+    Agents,       // /coven agents
+    Help,         // /coven help
     Unknown(String),
 }
 
@@ -32,12 +32,12 @@ impl Command {
 
         let parts: Vec<&str> = rest.splitn(2, ' ').collect();
         match parts[0] {
-            "bind" => {
-                match parts.get(1).map(|s| s.trim().to_string()) {
-                    Some(agent_id) if !agent_id.is_empty() => Some(Command::Bind(agent_id)),
-                    _ => Some(Command::Unknown("bind (requires agent-id, e.g., /coven bind agent-123)".to_string())),
-                }
-            }
+            "bind" => match parts.get(1).map(|s| s.trim().to_string()) {
+                Some(agent_id) if !agent_id.is_empty() => Some(Command::Bind(agent_id)),
+                _ => Some(Command::Unknown(
+                    "bind (requires agent-id, e.g., /coven bind agent-123)".to_string(),
+                )),
+            },
             "unbind" => Some(Command::Unbind),
             "status" => Some(Command::Status),
             "agents" => Some(Command::Agents),
@@ -54,17 +54,17 @@ pub struct CommandContext<'a> {
     pub room_id: &'a OwnedRoomId,
 }
 
-pub async fn execute_command(
-    command: Command,
-    ctx: CommandContext<'_>,
-) -> Result<String> {
+pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Result<String> {
     match command {
         Command::Bind(agent_id) => {
             let binding = RoomBinding {
                 room_id: ctx.room_id.clone(),
                 conversation_key: agent_id.clone(),
             };
-            ctx.bindings.write().await.insert(ctx.room_id.clone(), binding);
+            ctx.bindings
+                .write()
+                .await
+                .insert(ctx.room_id.clone(), binding);
             info!(room_id = %ctx.room_id, agent_id = %agent_id, "Room bound to agent via command");
             Ok(format!(
                 "Bound this room to agent: {}\nUse `/coven status` to verify.",
@@ -107,7 +107,9 @@ pub async fn execute_command(
                     response.push_str(&format!(
                         "- {} ({})\n",
                         agent.id,
-                        agent.metadata.as_ref()
+                        agent
+                            .metadata
+                            .as_ref()
                             .map(|m| m.working_directory.as_str())
                             .unwrap_or("unknown")
                     ));
@@ -115,16 +117,16 @@ pub async fn execute_command(
                 Ok(response)
             }
         }
-        Command::Help => {
-            Ok(r#"Coven Bridge Commands:
+        Command::Help => Ok(r#"Coven Bridge Commands:
 - /coven bind <agent-id> - Bind this room to an agent
 - /coven unbind - Unbind this room from current agent
 - /coven status - Show current binding status
 - /coven agents - List available agents
-- /coven help - Show this help message"#.to_string())
-        }
-        Command::Unknown(cmd) => {
-            Ok(format!("Unknown command: {}\nUse `/coven help` for available commands.", cmd))
-        }
+- /coven help - Show this help message"#
+            .to_string()),
+        Command::Unknown(cmd) => Ok(format!(
+            "Unknown command: {}\nUse `/coven help` for available commands.",
+            cmd
+        )),
     }
 }

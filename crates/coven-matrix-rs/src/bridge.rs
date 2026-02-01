@@ -10,10 +10,8 @@ use crate::matrix::{extract_text_content, MatrixClient};
 use coven_proto::client_stream_event::Payload;
 use futures::StreamExt;
 use matrix_sdk::{
-    config::SyncSettings,
-    ruma::events::room::message::OriginalSyncRoomMessageEvent,
-    ruma::OwnedRoomId,
-    RoomState,
+    config::SyncSettings, ruma::events::room::message::OriginalSyncRoomMessageEvent,
+    ruma::OwnedRoomId, RoomState,
 };
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -1035,6 +1035,7 @@ dependencies = [
  "coven-link",
  "coven-matrix-rs",
  "coven-pack",
+ "coven-serve",
  "coven-slack-rs",
  "coven-swarm",
  "coven-swarm-core",
@@ -1133,6 +1134,7 @@ dependencies = [
  "coven-proto",
  "futures",
  "prost",
+ "rustls",
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
@@ -1211,6 +1213,29 @@ dependencies = [
  "prost",
  "tonic",
  "tonic-build",
+]
+
+[[package]]
+name = "coven-serve"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "coven-proto",
+ "dirs",
+ "futures",
+ "prost",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

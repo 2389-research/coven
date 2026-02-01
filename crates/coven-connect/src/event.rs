@@ -2,7 +2,7 @@
 // ABOUTME: Converts between coven-core OutgoingEvent and coven-proto types
 
 use coven_core::OutgoingEvent;
-use coven_proto::{AgentMessage, MessageResponse, agent_message, message_response::Event};
+use coven_proto::{agent_message, message_response::Event, AgentMessage, MessageResponse};
 
 use crate::MAX_FILE_SIZE_BYTES;
 
@@ -168,15 +168,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_convert_text_event() {
-        let msg = convert_event_to_response("req-2", OutgoingEvent::Text("hello".to_string())).await;
+        let msg =
+            convert_event_to_response("req-2", OutgoingEvent::Text("hello".to_string())).await;
 
         match msg.payload {
-            Some(agent_message::Payload::Response(resp)) => {
-                match resp.event {
-                    Some(Event::Text(s)) => assert_eq!(s, "hello"),
-                    other => panic!("Expected Text event, got {:?}", other),
-                }
-            }
+            Some(agent_message::Payload::Response(resp)) => match resp.event {
+                Some(Event::Text(s)) => assert_eq!(s, "hello"),
+                other => panic!("Expected Text event, got {:?}", other),
+            },
             other => panic!("Expected Response payload, got {:?}", other),
         }
     }
@@ -187,12 +186,10 @@ mod tests {
             convert_event_to_response("req-3", OutgoingEvent::Error("oops".to_string())).await;
 
         match msg.payload {
-            Some(agent_message::Payload::Response(resp)) => {
-                match resp.event {
-                    Some(Event::Error(s)) => assert_eq!(s, "oops"),
-                    other => panic!("Expected Error event, got {:?}", other),
-                }
-            }
+            Some(agent_message::Payload::Response(resp)) => match resp.event {
+                Some(Event::Error(s)) => assert_eq!(s, "oops"),
+                other => panic!("Expected Error event, got {:?}", other),
+            },
             other => panic!("Expected Response payload, got {:?}", other),
         }
     }

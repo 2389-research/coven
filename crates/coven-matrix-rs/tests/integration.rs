@@ -10,9 +10,18 @@ use tempfile::NamedTempFile;
 fn test_command_parsing() {
     assert!(matches!(Command::parse("/coven help"), Some(Command::Help)));
     assert!(matches!(Command::parse("/coven"), Some(Command::Help)));
-    assert!(matches!(Command::parse("/coven agents"), Some(Command::Agents)));
-    assert!(matches!(Command::parse("/coven status"), Some(Command::Status)));
-    assert!(matches!(Command::parse("/coven unbind"), Some(Command::Unbind)));
+    assert!(matches!(
+        Command::parse("/coven agents"),
+        Some(Command::Agents)
+    ));
+    assert!(matches!(
+        Command::parse("/coven status"),
+        Some(Command::Status)
+    ));
+    assert!(matches!(
+        Command::parse("/coven unbind"),
+        Some(Command::Unbind)
+    ));
     assert!(matches!(
         Command::parse("/coven bind agent-123"),
         Some(Command::Bind(id)) if id == "agent-123"

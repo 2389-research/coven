@@ -2,5 +2,5 @@
 // ABOUTME: Re-exports from coven-ssh with additional helpers
 
 pub use coven_ssh::{
-    SshAuthCredentials, compute_fingerprint, default_agent_key_path, load_or_generate_key,
+    compute_fingerprint, default_agent_key_path, load_or_generate_key, SshAuthCredentials,
 };

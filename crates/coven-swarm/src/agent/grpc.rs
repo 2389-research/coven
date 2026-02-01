@@ -22,7 +22,12 @@ fn load_token() -> Result<String> {
         .join(".config/coven/token");
 
     let token = std::fs::read_to_string(&token_path)
-        .with_context(|| format!("No coven token found at {}. Run 'coven link' first.", token_path.display()))?
+        .with_context(|| {
+            format!(
+                "No coven token found at {}. Run 'coven link' first.",
+                token_path.display()
+            )
+        })?
         .trim()
         .to_string();
 
@@ -40,7 +45,10 @@ struct AuthInterceptor {
 }
 
 impl Interceptor for AuthInterceptor {
-    fn call(&mut self, mut req: tonic::Request<()>) -> std::result::Result<tonic::Request<()>, tonic::Status> {
+    fn call(
+        &mut self,
+        mut req: tonic::Request<()>,
+    ) -> std::result::Result<tonic::Request<()>, tonic::Status> {
         let auth_value = format!("Bearer {}", self.token)
             .parse()
             .map_err(|_| tonic::Status::internal("invalid token format"))?;
@@ -97,7 +105,9 @@ pub fn format_agent_id(prefix: &str, workspace: &str) -> String {
 }
 
 pub struct GatewayClient {
-    client: CovenControlClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>,
+    client: CovenControlClient<
+        tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>,
+    >,
     agent_id: String,
     workspace: String,
     working_dir: String,

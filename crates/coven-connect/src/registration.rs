@@ -24,8 +24,8 @@ pub enum SelfRegisterResult {
 pub fn check_token_file_permissions(path: &std::path::Path) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
 
-    let metadata = std::fs::metadata(path)
-        .map_err(|e| format!("Cannot read file metadata: {}", e))?;
+    let metadata =
+        std::fs::metadata(path).map_err(|e| format!("Cannot read file metadata: {}", e))?;
 
     let mode = metadata.permissions().mode();
     // Check if group or others have any permissions (bits 0o077)

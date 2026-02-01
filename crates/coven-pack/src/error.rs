@@ -64,9 +64,7 @@ impl From<coven_ssh::SshError> for PackError {
 impl From<coven_grpc::GrpcClientError> for PackError {
     fn from(err: coven_grpc::GrpcClientError) -> Self {
         match err {
-            coven_grpc::GrpcClientError::ConnectionFailed(msg) => {
-                PackError::ConnectionFailed(msg)
-            }
+            coven_grpc::GrpcClientError::ConnectionFailed(msg) => PackError::ConnectionFailed(msg),
             coven_grpc::GrpcClientError::StreamClosed => PackError::StreamClosed,
             coven_grpc::GrpcClientError::StreamError(msg) => PackError::StreamError(msg),
             coven_grpc::GrpcClientError::AuthenticationFailed(msg) => {
@@ -167,8 +165,7 @@ mod tests {
 
     #[test]
     fn test_from_grpc_error_authentication_failed() {
-        let grpc_err =
-            coven_grpc::GrpcClientError::AuthenticationFailed("invalid key".to_string());
+        let grpc_err = coven_grpc::GrpcClientError::AuthenticationFailed("invalid key".to_string());
         let err: PackError = grpc_err.into();
         assert!(matches!(err, PackError::AuthenticationFailed(_)));
         if let PackError::AuthenticationFailed(msg) = err {

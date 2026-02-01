@@ -50,12 +50,10 @@ fn resolve_path(working_dir: &Path, path: &str) -> Option<PathBuf> {
                 let has_parent_dir = Path::new(path)
                     .components()
                     .any(|c| matches!(c, Component::ParentDir));
-                if has_parent_dir {
-                    None
-                } else if p.is_absolute()
+                let is_outside_working = p.is_absolute()
                     && !(resolved.starts_with(working_dir)
-                        || resolved.starts_with(&canonical_working))
-                {
+                        || resolved.starts_with(&canonical_working));
+                if has_parent_dir || is_outside_working {
                     None
                 } else {
                     Some(resolved)

@@ -213,7 +213,9 @@ impl PackClient {
                             ExecuteToolResponse {
                                 request_id,
                                 result: Some(
-                                    coven_proto::execute_tool_response::Result::OutputJson(output.clone()),
+                                    coven_proto::execute_tool_response::Result::OutputJson(
+                                        output.clone(),
+                                    ),
                                 ),
                             }
                         }

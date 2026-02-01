@@ -63,11 +63,7 @@ async fn list_agents(gateway: &str, token: &str, workspace: Option<String>) -> R
         // Show metadata if available
         if let Some(metadata) = agent.metadata {
             if let Some(git) = metadata.git {
-                let git_info = format!(
-                    "{}{}",
-                    git.branch,
-                    if git.dirty { " (dirty)" } else { "" }
-                );
+                let git_info = format!("{}{}", git.branch, if git.dirty { " (dirty)" } else { "" });
                 println!("    {}: {}", "Git".dimmed(), git_info);
             }
             if !metadata.workspaces.is_empty() {

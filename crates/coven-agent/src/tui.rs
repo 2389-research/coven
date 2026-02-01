@@ -1,7 +1,7 @@
 // ABOUTME: TUI runner for coven-agent - visual display of agent activity
 // ABOUTME: Non-interactive, shows colored logs of events and status
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 
 /// Generate pack tools status message based on backend type.
 /// Returns None if tool_count is 0.
@@ -18,36 +18,36 @@ fn pack_tools_message(tool_count: usize, is_cli_backend: bool) -> Option<String>
         ))
     }
 }
-use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
-    execute,
-    terminal::{
-        EnterAlternateScreen, LeaveAlternateScreen, SetTitle, disable_raw_mode, enable_raw_mode,
-    },
-};
 use coven_core::backend::{
     ApprovalCallback, Backend, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
 };
 use coven_core::{Config, Coven, IncomingMessage, OutgoingEvent};
 use coven_proto::coven_control_client::CovenControlClient;
-use coven_proto::{AgentMessage, MessageResponse, RegisterAgent, agent_message, server_message};
+use coven_proto::{agent_message, server_message, AgentMessage, MessageResponse, RegisterAgent};
 use coven_ssh::{
-    SshAuthCredentials, compute_fingerprint, default_agent_key_path, load_or_generate_key,
+    compute_fingerprint, default_agent_key_path, load_or_generate_key, SshAuthCredentials,
+};
+use crossterm::{
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
+    execute,
+    terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
+    },
 };
 use futures::StreamExt;
 use ratatui::{
-    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
+    Frame, Terminal,
 };
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tonic::transport::Channel;
 
 use crate::metadata::AgentMetadata;
@@ -470,7 +470,8 @@ pub async fn run(
     let caps = capabilities;
 
     tokio::spawn(async move {
-        if let Err(e) = run_agent_task(&agent_tx, &server, &id, &backend_str, &work_dir, caps).await {
+        if let Err(e) = run_agent_task(&agent_tx, &server, &id, &backend_str, &work_dir, caps).await
+        {
             let _ = agent_tx
                 .send(UiEvent::Block(
                     BlockKind::Error,
@@ -1256,9 +1257,10 @@ fn draw_ui(f: &mut Frame, app: &mut App) -> usize {
     let visible_height = draw_logs(f, app, chunks[1]);
 
     // Help bar
-    let help =
-        Paragraph::new(" [q/Esc/Ctrl-C] Quit  [up/down/j/k] Scroll  [PgUp/PgDn] Page  [Home/End] Jump")
-            .style(Style::default().fg(Color::DarkGray));
+    let help = Paragraph::new(
+        " [q/Esc/Ctrl-C] Quit  [up/down/j/k] Scroll  [PgUp/PgDn] Page  [Home/End] Jump",
+    )
+    .style(Style::default().fg(Color::DarkGray));
     f.render_widget(help, chunks[2]);
 
     visible_height

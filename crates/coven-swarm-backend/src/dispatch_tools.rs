@@ -101,7 +101,9 @@ impl Tool for ListAgentsTool {
                     }
                 } else {
                     Ok(ToolResult::error(
-                        response.error.unwrap_or_else(|| "Unknown error".to_string())
+                        response
+                            .error
+                            .unwrap_or_else(|| "Unknown error".to_string()),
                     ))
                 }
             }
@@ -159,22 +161,33 @@ impl Tool for CreateWorkspaceTool {
             return Ok(ToolResult::error("Workspace name cannot be empty"));
         }
         if params.name.contains('/') || params.name.contains("..") {
-            return Ok(ToolResult::error("Workspace name cannot contain '/' or '..'"));
+            return Ok(ToolResult::error(
+                "Workspace name cannot contain '/' or '..'",
+            ));
         }
 
-        match send_request(&self.prefix, Request::Create { name: params.name.clone() }).await {
+        match send_request(
+            &self.prefix,
+            Request::Create {
+                name: params.name.clone(),
+            },
+        )
+        .await
+        {
             Ok(response) => {
                 if response.success {
-                    let agent_id = response.agent_id.unwrap_or_else(|| {
-                        format!("{}_{}", self.prefix, params.name)
-                    });
+                    let agent_id = response
+                        .agent_id
+                        .unwrap_or_else(|| format!("{}_{}", self.prefix, params.name));
                     Ok(ToolResult::text(format!(
                         "Successfully created workspace '{}' and spawned agent '{}'",
                         params.name, agent_id
                     )))
                 } else {
                     Ok(ToolResult::error(
-                        response.error.unwrap_or_else(|| "Unknown error".to_string())
+                        response
+                            .error
+                            .unwrap_or_else(|| "Unknown error".to_string()),
                     ))
                 }
             }
@@ -231,7 +244,14 @@ impl Tool for DeleteWorkspaceTool {
             return Ok(ToolResult::error("Workspace name cannot be empty"));
         }
 
-        match send_request(&self.prefix, Request::Delete { name: params.name.clone() }).await {
+        match send_request(
+            &self.prefix,
+            Request::Delete {
+                name: params.name.clone(),
+            },
+        )
+        .await
+        {
             Ok(response) => {
                 if response.success {
                     Ok(ToolResult::text(format!(
@@ -240,7 +260,9 @@ impl Tool for DeleteWorkspaceTool {
                     )))
                 } else {
                     Ok(ToolResult::error(
-                        response.error.unwrap_or_else(|| "Unknown error".to_string())
+                        response
+                            .error
+                            .unwrap_or_else(|| "Unknown error".to_string()),
                     ))
                 }
             }

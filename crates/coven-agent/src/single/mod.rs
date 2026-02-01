@@ -7,25 +7,25 @@ mod messages;
 mod theme;
 mod ui;
 
-use anyhow::{Result, bail};
-use crossterm::{
-    event::{self, Event, KeyEventKind},
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
+use anyhow::{bail, Result};
 use coven_core::backend::{
     ApprovalCallback, Backend, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
 };
 use coven_core::{Config, Coven, IncomingMessage, OutgoingEvent};
+use crossterm::{
+    event::{self, Event, KeyEventKind},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
 use futures::StreamExt;
-use ratatui::{Terminal, backend::CrosstermBackend};
+use ratatui::{backend::CrosstermBackend, Terminal};
 use std::collections::HashMap;
 use std::io;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Mutex};
 
 use app::{App, AppStatus, PendingApproval};
 use input::InputResult;
@@ -164,8 +164,7 @@ pub async fn run(name: &str, agent_id: &str, backend_type: &str, working_dir: &P
                                 .rev()
                                 .find(|m| m.role == messages::Role::Agent)
                             {
-                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id)
-                                {
+                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id) {
                                     tool.status = ToolStatus::Executing;
                                 }
                             }
@@ -197,8 +196,7 @@ pub async fn run(name: &str, agent_id: &str, backend_type: &str, working_dir: &P
                                 .rev()
                                 .find(|m| m.role == messages::Role::Agent)
                             {
-                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id)
-                                {
+                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id) {
                                     tool.status = ToolStatus::Denied;
                                 }
                             }
@@ -229,8 +227,7 @@ pub async fn run(name: &str, agent_id: &str, backend_type: &str, working_dir: &P
                                 .rev()
                                 .find(|m| m.role == messages::Role::Agent)
                             {
-                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id)
-                                {
+                                if let Some(tool) = msg.tools.iter_mut().find(|t| t.id == tool_id) {
                                     tool.status = ToolStatus::Executing;
                                 }
                             }

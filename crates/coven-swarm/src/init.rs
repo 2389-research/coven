@@ -57,7 +57,8 @@ pub fn run_init() -> Result<()> {
     let (default_host, default_port) = coven_config
         .as_ref()
         .map(|c| {
-            let gateway = c.gateway
+            let gateway = c
+                .gateway
                 .strip_prefix("http://")
                 .or_else(|| c.gateway.strip_prefix("https://"))
                 .unwrap_or(&c.gateway);
@@ -83,7 +84,11 @@ pub fn run_init() -> Result<()> {
     let default_prefix = coven_config
         .as_ref()
         .map(|c| c.device_name.clone())
-        .unwrap_or_else(|| hostname::get().map(|h| h.to_string_lossy().to_string()).unwrap_or_else(|_| "swarm".to_string()));
+        .unwrap_or_else(|| {
+            hostname::get()
+                .map(|h| h.to_string_lossy().to_string())
+                .unwrap_or_else(|_| "swarm".to_string())
+        });
     let prefix = prompt("Agent prefix", &default_prefix)?;
 
     let default_workdir = dirs::home_dir()

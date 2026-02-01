@@ -6,8 +6,8 @@ use crate::config::ClaudeConfig;
 use anyhow::Result;
 use async_trait::async_trait;
 use claude_sdk_rs::{Client, Config, SessionId};
-use futures::StreamExt;
 use futures::stream::BoxStream;
+use futures::StreamExt;
 
 pub struct ClaudeSdkBackend {
     client: Client,

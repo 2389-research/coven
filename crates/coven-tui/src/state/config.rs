@@ -166,7 +166,9 @@ impl Config {
                         if let Some((host, port, use_tls)) = Self::parse_gateway_url(gateway) {
                             tracing::debug!(
                                 "Loaded gateway from shared config: {}:{} (tls={})",
-                                host, port, use_tls
+                                host,
+                                port,
+                                use_tls
                             );
                             config.gateway.host = host;
                             config.gateway.port = port;

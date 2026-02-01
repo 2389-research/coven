@@ -7,9 +7,9 @@ mod todo;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use db::{Database, TodoFilter};
 use coven_pack::{ManifestBuilder, PackClient, SchemaBuilder, ToolError, ToolHandler};
 use coven_ssh::load_or_generate_key;
+use db::{Database, TodoFilter};
 use notes::{
     NoteCreateInput, NoteCreateOutput, NoteReadInput, NoteReadOutput, NoteSearchInput,
     NoteSearchOutput,

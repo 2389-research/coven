@@ -766,9 +766,7 @@ fn run_persistent_worker(config: AcpConfig, mut cmd_rx: mpsc::Receiver<WorkerCom
                                             "Failed to load session, treating as orphaned"
                                         );
                                         // Emit SessionOrphaned so the caller can reset
-                                        let _ = event_tx
-                                            .send(BackendEvent::SessionOrphaned)
-                                            .await;
+                                        let _ = event_tx.send(BackendEvent::SessionOrphaned).await;
                                         client.close_event_channel();
                                         continue;
                                     }

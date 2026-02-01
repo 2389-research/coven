@@ -38,14 +38,12 @@ impl Command {
 
         let parts: Vec<&str> = text.splitn(2, ' ').collect();
         match parts[0] {
-            "bind" => {
-                match parts.get(1).map(|s| s.trim().to_string()) {
-                    Some(agent_id) if !agent_id.is_empty() => Command::Bind(agent_id),
-                    _ => Command::Unknown(
-                        "bind (requires agent-id, e.g., /coven bind agent-123)".to_string(),
-                    ),
-                }
-            }
+            "bind" => match parts.get(1).map(|s| s.trim().to_string()) {
+                Some(agent_id) if !agent_id.is_empty() => Command::Bind(agent_id),
+                _ => Command::Unknown(
+                    "bind (requires agent-id, e.g., /coven bind agent-123)".to_string(),
+                ),
+            },
             "unbind" => Command::Unbind,
             "status" => Command::Status,
             "agents" => Command::Agents,
@@ -108,7 +106,9 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
                     ":x: Unbound this channel from agent: `{}`",
                     binding.conversation_key
                 )),
-                None => Ok(":information_source: This channel was not bound to any agent.".to_string()),
+                None => {
+                    Ok(":information_source: This channel was not bound to any agent.".to_string())
+                }
             }
         }
 
@@ -140,17 +140,13 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
                         .as_ref()
                         .map(|m| m.working_directory.as_str())
                         .unwrap_or("unknown");
-                    response.push_str(&format!("• `{}` _({})\n",
-                        agent.id,
-                        working_dir
-                    ));
+                    response.push_str(&format!("• `{}` _({})\n", agent.id, working_dir));
                 }
                 Ok(response)
             }
         }
 
-        Command::Help => {
-            Ok(r#":book: *Coven Bridge Commands:*
+        Command::Help => Ok(r#":book: *Coven Bridge Commands:*
 
 • `/coven bind <agent-id>` - Bind this channel to an agent
 • `/coven unbind` - Unbind this channel from current agent
@@ -158,15 +154,13 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
 • `/coven agents` - List available agents
 • `/coven help` - Show this help message
 
-_Messages in bound channels will be forwarded to the agent._"#.to_string())
-        }
+_Messages in bound channels will be forwarded to the agent._"#
+            .to_string()),
 
-        Command::Unknown(cmd) => {
-            Ok(format!(
-                ":question: Unknown command: `{}`\nUse `/coven help` for available commands.",
-                cmd
-            ))
-        }
+        Command::Unknown(cmd) => Ok(format!(
+            ":question: Unknown command: `{}`\nUse `/coven help` for available commands.",
+            cmd
+        )),
     }
 }
 
@@ -217,10 +211,7 @@ mod tests {
 
     #[test]
     fn test_command_parse_unknown() {
-        assert_eq!(
-            Command::parse("foo"),
-            Command::Unknown("foo".to_string())
-        );
+        assert_eq!(Command::parse("foo"), Command::Unknown("foo".to_string()));
     }
 
     #[test]
@@ -234,10 +225,7 @@ mod tests {
 
     #[test]
     fn test_from_message() {
-        assert_eq!(
-            Command::from_message("/coven help"),
-            Some(Command::Help)
-        );
+        assert_eq!(Command::from_message("/coven help"), Some(Command::Help));
         assert_eq!(
             Command::from_message("/coven bind agent-1"),
             Some(Command::Bind("agent-1".to_string()))

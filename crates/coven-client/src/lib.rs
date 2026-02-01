@@ -34,8 +34,8 @@ pub fn generate_ssh_key(key_path: String) -> Result<String, CovenError> {
     use std::path::Path;
 
     let path = Path::new(&key_path);
-    let key = load_or_generate_key(path)
-        .map_err(|e| CovenError::Api(format!("SSH key error: {}", e)))?;
+    let key =
+        load_or_generate_key(path).map_err(|e| CovenError::Api(format!("SSH key error: {}", e)))?;
 
     let fingerprint = compute_fingerprint(key.public_key())
         .map_err(|e| CovenError::Api(format!("SSH fingerprint error: {}", e)))?;

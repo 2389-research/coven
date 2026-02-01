@@ -55,8 +55,8 @@ pub async fn run(gateway: String, name: Option<String>, key_path: Option<String>
         key_path.display()
     );
 
-    let private_key = coven_ssh::load_or_generate_key(&key_path)
-        .context("Failed to load or generate SSH key")?;
+    let private_key =
+        coven_ssh::load_or_generate_key(&key_path).context("Failed to load or generate SSH key")?;
     let fingerprint = coven_ssh::compute_fingerprint(private_key.public_key())
         .context("Failed to compute key fingerprint")?;
 
@@ -106,10 +106,7 @@ pub async fn run(gateway: String, name: Option<String>, key_path: Option<String>
     println!();
     println!(
         "  {}",
-        format!("  {}  ", link_resp.code)
-            .on_white()
-            .black()
-            .bold()
+        format!("  {}  ", link_resp.code).on_white().black().bold()
     );
     println!();
     println!("  Code expires at: {}", link_resp.expires_at.dimmed());

@@ -51,9 +51,9 @@ pub fn run(gateway_url: &str, key_path: &Path, message: &str, agent: Option<&str
         if let Some(path) = state_path {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 if let Ok(state) = serde_json::from_str::<PersistedState>(&content) {
-                    state
-                        .last_agent
-                        .context("No agent specified and no last agent saved. Use --agent <name>.")?
+                    state.last_agent.context(
+                        "No agent specified and no last agent saved. Use --agent <name>.",
+                    )?
                 } else {
                     anyhow::bail!("No agent specified. Use --agent <name>.");
                 }

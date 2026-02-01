@@ -164,11 +164,7 @@ impl Config {
     /// Returns true if allowed_channels is empty (allow all) or channel is in list.
     pub fn is_channel_allowed(&self, channel_id: &str) -> bool {
         self.bridge.allowed_channels.is_empty()
-            || self
-                .bridge
-                .allowed_channels
-                .iter()
-                .any(|c| c == channel_id)
+            || self.bridge.allowed_channels.iter().any(|c| c == channel_id)
     }
 }
 

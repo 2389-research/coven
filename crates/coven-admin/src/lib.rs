@@ -6,9 +6,7 @@ use anyhow::Result;
 pub mod client;
 pub mod commands;
 
-pub use commands::{
-    AgentsCommand, BindingsCommand, Command, PrincipalsCommand, TokenCommand,
-};
+pub use commands::{AgentsCommand, BindingsCommand, Command, PrincipalsCommand, TokenCommand};
 
 /// Config file structure (subset of what coven-link writes)
 #[derive(serde::Deserialize, Default)]
@@ -64,7 +62,9 @@ pub async fn run_command(
         Command::Me => commands::me::run(&gateway, token.as_deref()).await,
         Command::Agents(cmd) => commands::agents::run(&gateway, token.as_deref(), cmd).await,
         Command::Bindings(cmd) => commands::bindings::run(&gateway, token.as_deref(), cmd).await,
-        Command::Principals(cmd) => commands::principals::run(&gateway, token.as_deref(), cmd).await,
+        Command::Principals(cmd) => {
+            commands::principals::run(&gateway, token.as_deref(), cmd).await
+        }
         Command::Token(cmd) => commands::token::run(&gateway, token.as_deref(), cmd).await,
     }
 }

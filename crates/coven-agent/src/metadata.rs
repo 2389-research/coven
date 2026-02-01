@@ -139,8 +139,8 @@ impl AgentMetadata {
             git,
             hostname,
             os,
-            workspaces: Vec::new(), // Set by caller from config
-            backend: String::new(), // Set by caller
+            workspaces: Vec::new(),   // Set by caller from config
+            backend: String::new(),   // Set by caller
             capabilities: Vec::new(), // Set by caller from config
         }
     }

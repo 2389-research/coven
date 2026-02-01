@@ -1,0 +1,49 @@
+# ABOUTME: Local gateway server for coven - "super trusted" mode
+# ABOUTME: Implements CovenControl, ClientService, and PackService without auth
+
+[package]
+name = "coven-serve"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+
+# gRPC
+tonic.workspace = true
+prost.workspace = true
+
+# Database
+sqlx.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Time
+chrono.workspace = true
+
+# UUID
+uuid.workspace = true
+
+# Filesystem
+dirs.workspace = true
+
+# Internal crates
+coven-proto.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

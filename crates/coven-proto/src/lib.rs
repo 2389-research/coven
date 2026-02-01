@@ -23,4 +23,5 @@ pub mod server {
     pub use super::coven::admin_service_server::{AdminService, AdminServiceServer};
     pub use super::coven::client_service_server::{ClientService, ClientServiceServer};
     pub use super::coven::coven_control_server::{CovenControl, CovenControlServer};
+    pub use super::coven::pack_service_server::{PackService, PackServiceServer};
 }

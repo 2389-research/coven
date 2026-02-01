@@ -16,7 +16,10 @@ pub enum Response {
     ToolStart(String),
     ToolComplete(String),
     ToolError(String, String),
-    Usage { input: u32, output: u32 },
+    Usage {
+        input: u32,
+        output: u32,
+    },
     WorkingDir(String),
     ToolApprovalRequest {
         agent_id: String,

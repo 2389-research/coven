@@ -3,7 +3,7 @@
 
 use crate::client::Response;
 use crate::types::{
-    Agent, Message, Mode, PersistedState, PendingApproval, Role, SessionMetadata, StreamingMessage,
+    Agent, Message, Mode, PendingApproval, PersistedState, Role, SessionMetadata, StreamingMessage,
     ToolStatus, ToolUse,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};

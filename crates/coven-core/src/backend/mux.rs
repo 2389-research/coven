@@ -7,8 +7,8 @@ use super::mux_tools::{
 use super::{Backend, BackendEvent};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use futures::StreamExt;
 use futures::stream::BoxStream;
+use futures::StreamExt;
 use mux::prelude::*;
 use mux::tool::Registry;
 use mux::tools::{WebFetchTool, WebSearchTool};
@@ -830,7 +830,9 @@ async fn run_prompt(
                         }
                         if let Some(tool_idx) = tool_index_map.get(index) {
                             if let Some(json_str) = tool_input_accum.remove(index) {
-                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                                if let Ok(parsed) =
+                                    serde_json::from_str::<serde_json::Value>(&json_str)
+                                {
                                     if let Some(tool) = tool_uses.get_mut(*tool_idx) {
                                         tool.2 = parsed;
                                     }
@@ -1207,7 +1209,10 @@ mod tests {
             system_pos < soul_pos,
             "Global system should come before global soul"
         );
-        assert!(soul_pos < local_pos, "Global soul should come before local prompt");
+        assert!(
+            soul_pos < local_pos,
+            "Global soul should come before local prompt"
+        );
     }
 
     #[test]

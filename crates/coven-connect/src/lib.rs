@@ -1,8 +1,10 @@
 // ABOUTME: Shared gateway connection utilities for coven agents
 // ABOUTME: Provides SSH auth, event conversion, and common constants
 
-use coven_proto::{AgentMessage, MessageResponse, agent_message};
-use coven_ssh::{SshAuthCredentials, compute_fingerprint, default_agent_key_path, load_or_generate_key};
+use coven_proto::{agent_message, AgentMessage, MessageResponse};
+use coven_ssh::{
+    compute_fingerprint, default_agent_key_path, load_or_generate_key, SshAuthCredentials,
+};
 use ssh_key::PrivateKey;
 use std::sync::Arc;
 use tonic::transport::Channel;
@@ -95,7 +97,10 @@ pub fn build_registration_message(
 }
 
 /// Build a response message wrapping an event.
-pub fn build_response_message(request_id: &str, event: coven_proto::message_response::Event) -> AgentMessage {
+pub fn build_response_message(
+    request_id: &str,
+    event: coven_proto::message_response::Event,
+) -> AgentMessage {
     AgentMessage {
         payload: Some(agent_message::Payload::Response(MessageResponse {
             request_id: request_id.to_string(),

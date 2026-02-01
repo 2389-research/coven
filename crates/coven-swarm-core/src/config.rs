@@ -140,7 +140,10 @@ mod tests {
         .unwrap();
 
         let config = Config::load(file.path()).unwrap();
-        assert_eq!(config.gateway_url, Some("http://localhost:50051".to_string()));
+        assert_eq!(
+            config.gateway_url,
+            Some("http://localhost:50051".to_string())
+        );
         assert_eq!(config.prefix, "home");
         assert_eq!(config.default_backend, BackendType::Acp);
     }
@@ -224,7 +227,10 @@ mod tests {
         };
 
         // Should return the explicit URL
-        assert_eq!(config.gateway_url().unwrap(), "http://explicit.example.com:50051");
+        assert_eq!(
+            config.gateway_url().unwrap(),
+            "http://explicit.example.com:50051"
+        );
     }
 
     #[test]

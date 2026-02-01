@@ -34,7 +34,11 @@ impl Session {
     /// Text events are accumulated and sent periodically to avoid overwhelming
     /// the gateway's response channel. Non-text events (tools, errors) are sent
     /// immediately. SessionInit/SessionOrphaned events update internal state.
-    pub async fn handle_message(&mut self, msg: coven::SendMessage, tx: ResponseSender) -> Result<()> {
+    pub async fn handle_message(
+        &mut self,
+        msg: coven::SendMessage,
+        tx: ResponseSender,
+    ) -> Result<()> {
         let request_id = msg.request_id.clone();
         let mut accumulated_text = String::new();
         let mut sent_done = false;
@@ -44,7 +48,11 @@ impl Session {
         let mut last_text_send = Instant::now();
         let debounce_interval = Duration::from_millis(TEXT_DEBOUNCE_MS);
 
-        match self.backend.send(&self.session_id, &msg.content, self.is_new_session).await {
+        match self
+            .backend
+            .send(&self.session_id, &msg.content, self.is_new_session)
+            .await
+        {
             Ok(mut stream) => {
                 while let Some(event) = stream.next().await {
                     match event {
@@ -153,7 +161,11 @@ impl Session {
                                 return Ok(());
                             }
                         }
-                        BackendEvent::ToolResult { id, output, is_error } => {
+                        BackendEvent::ToolResult {
+                            id,
+                            output,
+                            is_error,
+                        } => {
                             let resp = coven::MessageResponse {
                                 request_id: request_id.clone(),
                                 event: Some(coven::message_response::Event::ToolResult(
@@ -229,7 +241,11 @@ impl Session {
                         BackendEvent::ToolState { id, state, .. } => {
                             tracing::debug!(tool_id = %id, ?state, "Tool state change");
                         }
-                        BackendEvent::Usage { input_tokens, output_tokens, .. } => {
+                        BackendEvent::Usage {
+                            input_tokens,
+                            output_tokens,
+                            ..
+                        } => {
                             tracing::debug!(input_tokens, output_tokens, "Token usage");
                         }
                     }
@@ -245,22 +261,26 @@ impl Session {
                 }
             }
             Err(e) => {
-                let _ = tx.send(coven::MessageResponse {
-                    request_id: request_id.clone(),
-                    event: Some(coven::message_response::Event::Error(e.to_string())),
-                }).await;
+                let _ = tx
+                    .send(coven::MessageResponse {
+                        request_id: request_id.clone(),
+                        event: Some(coven::message_response::Event::Error(e.to_string())),
+                    })
+                    .await;
                 return Ok(());
             }
         }
 
         // Ensure we send Done if not already sent
         if !sent_done {
-            let _ = tx.send(coven::MessageResponse {
-                request_id,
-                event: Some(coven::message_response::Event::Done(coven::Done {
-                    full_response: accumulated_text,
-                })),
-            }).await;
+            let _ = tx
+                .send(coven::MessageResponse {
+                    request_id,
+                    event: Some(coven::message_response::Event::Done(coven::Done {
+                        full_response: accumulated_text,
+                    })),
+                })
+                .await;
         }
 
         Ok(())

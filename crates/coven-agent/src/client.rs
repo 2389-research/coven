@@ -1,29 +1,29 @@
 // ABOUTME: GRPC client implementation for coven-agent
 // ABOUTME: Handles connection, registration, message processing loop
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use coven_connect::event::convert_event_to_response;
-use coven_connect::registration::{SelfRegisterResult, try_self_register};
+use coven_connect::registration::{try_self_register, SelfRegisterResult};
 use coven_connect::MAX_REGISTRATION_ATTEMPTS;
 use coven_core::backend::{
     ApprovalCallback, Backend, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
 };
 use coven_core::{Config, Coven, IncomingMessage, OutgoingEvent};
 use coven_proto::coven_control_client::CovenControlClient;
-use coven_proto::{AgentMessage, MessageResponse, RegisterAgent, agent_message, server_message};
+use coven_proto::{agent_message, server_message, AgentMessage, MessageResponse, RegisterAgent};
 use coven_ssh::{
-    SshAuthCredentials, compute_fingerprint, default_agent_key_path, load_or_generate_key,
+    compute_fingerprint, default_agent_key_path, load_or_generate_key, SshAuthCredentials,
 };
 use futures::StreamExt;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::{Mutex, Semaphore, mpsc, oneshot};
-use tonic::Code;
+use tokio::sync::{mpsc, oneshot, Mutex, Semaphore};
 use tonic::transport::Channel;
+use tonic::Code;
 
 use crate::pack_tool::{
-    PackTool, PendingPackTools, handle_pack_tool_result, new_pending_pack_tools,
+    handle_pack_tool_result, new_pending_pack_tools, PackTool, PendingPackTools,
 };
 
 /// Maximum concurrent message processing tasks (backpressure)
@@ -192,15 +192,24 @@ pub async fn run(
 
         // Create SSH auth interceptor (fresh each iteration)
         let private_key_clone = private_key.clone();
-        let ssh_auth_interceptor = move |mut req: tonic::Request<()>| -> std::result::Result<tonic::Request<()>, tonic::Status> {
+        let ssh_auth_interceptor = move |mut req: tonic::Request<()>| -> std::result::Result<
+            tonic::Request<()>,
+            tonic::Status,
+        > {
             match SshAuthCredentials::new(&private_key_clone) {
                 Ok(creds) => {
                     if let Err(e) = creds.apply_to_request(&mut req) {
-                        return Err(tonic::Status::internal(format!("failed to apply SSH auth: {}", e)));
+                        return Err(tonic::Status::internal(format!(
+                            "failed to apply SSH auth: {}",
+                            e
+                        )));
                     }
                 }
                 Err(e) => {
-                    return Err(tonic::Status::internal(format!("failed to create SSH auth credentials: {}", e)));
+                    return Err(tonic::Status::internal(format!(
+                        "failed to create SSH auth credentials: {}",
+                        e
+                    )));
                 }
             }
             Ok(req)
@@ -215,7 +224,10 @@ pub async fn run(
         eprintln!("[4/5] Opening bidirectional stream...");
         let response = match client.agent_stream(outbound).await {
             Ok(r) => r,
-            Err(e) if e.code() == Code::Unauthenticated && e.message().contains("unknown public key") => {
+            Err(e)
+                if e.code() == Code::Unauthenticated
+                    && e.message().contains("unknown public key") =>
+            {
                 // Try to self-register using coven-link token
                 eprintln!("  Fingerprint not registered. Attempting auto-registration...");
                 match try_self_register(server_addr, &fingerprint, agent_id).await? {
@@ -295,7 +307,10 @@ pub async fn run(
                             let mcp_url =
                                 crate::build_mcp_url(&welcome.mcp_endpoint, &welcome.mcp_token);
                             eprintln!("  MCP endpoint: {}", mcp_url);
-                            match mux.connect_gateway_mcp(&welcome.mcp_endpoint, &welcome.mcp_token).await {
+                            match mux
+                                .connect_gateway_mcp(&welcome.mcp_endpoint, &welcome.mcp_token)
+                                .await
+                            {
                                 Ok(count) => {
                                     eprintln!("  Gateway MCP: connected ({} tools)", count);
                                 }
@@ -702,7 +717,7 @@ fn truncate(s: &str, max: usize) -> String {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use tokio::time::{Duration, sleep};
+    use tokio::time::{sleep, Duration};
 
     #[test]
     fn test_max_concurrent_messages_is_reasonable() {

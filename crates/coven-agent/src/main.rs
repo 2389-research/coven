@@ -8,7 +8,7 @@ mod single;
 mod tui;
 mod wizard;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 
 // Re-export from lib for use in this binary and for tests
@@ -219,122 +219,131 @@ async fn run_agent(
     });
 
     // Load settings from config - required unless running in single mode
-    let (server, name, backend, working_dir, workspaces, capabilities) = if let Some(ref config_path) =
-        config_path
-    {
-        tracing::info!("Loading config from: {}", config_path.display());
-        let config_content = std::fs::read_to_string(config_path)
-            .with_context(|| format!("failed to read config file: {}", config_path.display()))?;
-        let config: toml::Table = toml::from_str(&config_content)
-            .with_context(|| format!("failed to parse config file: {}", config_path.display()))?;
-
-        // Check if this is a reference to a global agent (agent = "name")
-        let config = if let Some(agent_ref) = config.get("agent").and_then(|v| v.as_str()) {
-            // Resolve to ~/.config/coven/agents/{agent}.toml
-            let agents_dir = xdg_config_dir()
-                .ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?
-                .join("agents");
-            let agent_config_path = agents_dir.join(format!("{}.toml", agent_ref));
-            tracing::info!(
-                "Resolving agent reference '{}' -> {}",
-                agent_ref,
-                agent_config_path.display()
-            );
-            let agent_content = std::fs::read_to_string(&agent_config_path).with_context(|| {
-                format!(
-                    "failed to read agent config '{}' at {}",
-                    agent_ref,
-                    agent_config_path.display()
-                )
+    let (server, name, backend, working_dir, workspaces, capabilities) =
+        if let Some(ref config_path) = config_path {
+            tracing::info!("Loading config from: {}", config_path.display());
+            let config_content = std::fs::read_to_string(config_path).with_context(|| {
+                format!("failed to read config file: {}", config_path.display())
             })?;
-            toml::from_str(&agent_content).with_context(|| {
-                format!(
-                    "failed to parse agent config '{}' at {}",
+            let config: toml::Table = toml::from_str(&config_content).with_context(|| {
+                format!("failed to parse config file: {}", config_path.display())
+            })?;
+
+            // Check if this is a reference to a global agent (agent = "name")
+            let config = if let Some(agent_ref) = config.get("agent").and_then(|v| v.as_str()) {
+                // Resolve to ~/.config/coven/agents/{agent}.toml
+                let agents_dir = xdg_config_dir()
+                    .ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?
+                    .join("agents");
+                let agent_config_path = agents_dir.join(format!("{}.toml", agent_ref));
+                tracing::info!(
+                    "Resolving agent reference '{}' -> {}",
                     agent_ref,
                     agent_config_path.display()
-                )
-            })?
-        } else {
-            config
-        };
+                );
+                let agent_content =
+                    std::fs::read_to_string(&agent_config_path).with_context(|| {
+                        format!(
+                            "failed to read agent config '{}' at {}",
+                            agent_ref,
+                            agent_config_path.display()
+                        )
+                    })?;
+                toml::from_str(&agent_content).with_context(|| {
+                    format!(
+                        "failed to parse agent config '{}' at {}",
+                        agent_ref,
+                        agent_config_path.display()
+                    )
+                })?
+            } else {
+                config
+            };
 
-        // Server can come from:
-        // 1. Agent config file (server = "...")
-        // 2. User's coven config from `coven link` (~/.config/coven/config.toml)
-        // 3. CLI args / defaults
-        let server = config
-            .get("server")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .or_else(|| {
-                // Try to load gateway from user's coven config
-                coven_link::config::CovenConfig::load().ok().map(|c| {
-                    // Gateway is "host:port" format, convert to URL
-                    if c.gateway.starts_with("http://") || c.gateway.starts_with("https://") {
-                        c.gateway
-                    } else {
-                        format!("http://{}", c.gateway)
-                    }
+            // Server can come from:
+            // 1. Agent config file (server = "...")
+            // 2. User's coven config from `coven link` (~/.config/coven/config.toml)
+            // 3. CLI args / defaults
+            let server = config
+                .get("server")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    // Try to load gateway from user's coven config
+                    coven_link::config::CovenConfig::load().ok().map(|c| {
+                        // Gateway is "host:port" format, convert to URL
+                        if c.gateway.starts_with("http://") || c.gateway.starts_with("https://") {
+                            c.gateway
+                        } else {
+                            format!("http://{}", c.gateway)
+                        }
+                    })
                 })
-            })
-            .unwrap_or(server);
-        let name = config
-            .get("name")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or(name);
-        let backend = config
-            .get("backend")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .or(backend);
-        let config_working_dir = config
-            .get("working_dir")
-            .and_then(|v| v.as_str())
-            .map(PathBuf::from);
+                .unwrap_or(server);
+            let name = config
+                .get("name")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or(name);
+            let backend = config
+                .get("backend")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or(backend);
+            let config_working_dir = config
+                .get("working_dir")
+                .and_then(|v| v.as_str())
+                .map(PathBuf::from);
 
-        // Load workspaces from config
-        let workspaces: Vec<String> = config
-            .get("workspaces")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
+            // Load workspaces from config
+            let workspaces: Vec<String> = config
+                .get("workspaces")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        // Load capabilities from config (default to base + chat for gateway tools)
-        let capabilities: Vec<String> = config
-            .get("capabilities")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_else(metadata::default_capabilities);
+            // Load capabilities from config (default to base + chat for gateway tools)
+            let capabilities: Vec<String> = config
+                .get("capabilities")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_else(metadata::default_capabilities);
 
-        (
-            server,
-            name,
-            backend,
-            working_dir.or(config_working_dir),
-            workspaces,
-            capabilities,
-        )
-    } else if !single {
-        // Config is required for gateway mode
-        bail!(
-            "No configuration found. Create one with 'coven-agent new' or specify --config.\n\
+            (
+                server,
+                name,
+                backend,
+                working_dir.or(config_working_dir),
+                workspaces,
+                capabilities,
+            )
+        } else if !single {
+            // Config is required for gateway mode
+            bail!(
+                "No configuration found. Create one with 'coven-agent new' or specify --config.\n\
              Searched:\n\
              - .coven/agent.toml (project-local)\n\
              - ~/.config/coven/agent.toml (user-global)"
-        );
-    } else {
-        // Single mode can work without config - use default capabilities
-        (server, name, backend, working_dir, Vec::new(), metadata::default_capabilities())
-    };
+            );
+        } else {
+            // Single mode can work without config - use default capabilities
+            (
+                server,
+                name,
+                backend,
+                working_dir,
+                Vec::new(),
+                metadata::default_capabilities(),
+            )
+        };
 
     // Default to current directory if not specified
     let working_dir = working_dir
@@ -359,7 +368,16 @@ async fn run_agent(
     }
 
     match mode {
-        DisplayMode::Tui => tui::run(&server, &agent_id, &backend_type, &working_dir, capabilities).await,
+        DisplayMode::Tui => {
+            tui::run(
+                &server,
+                &agent_id,
+                &backend_type,
+                &working_dir,
+                capabilities,
+            )
+            .await
+        }
         DisplayMode::Headless => {
             // Gather metadata for registration
             let mut metadata = metadata::AgentMetadata::gather(&working_dir);

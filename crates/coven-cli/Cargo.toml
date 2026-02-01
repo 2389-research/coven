@@ -27,6 +27,7 @@ coven-client.workspace = true
 coven-link.workspace = true
 coven-matrix-rs.workspace = true
 coven-pack.workspace = true
+coven-serve.workspace = true
 coven-slack-rs.workspace = true
 coven-swarm.workspace = true
 coven-swarm-core.workspace = true

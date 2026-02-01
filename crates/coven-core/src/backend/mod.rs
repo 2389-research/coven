@@ -9,7 +9,7 @@ mod mux_tools;
 pub use claude_sdk::ClaudeSdkBackend;
 pub use direct_cli::{DirectCliBackend, DirectCliConfig};
 pub use mux::{
-    ApprovalCallback, MuxBackend, MuxConfig, MuxMcpServerConfig, default_dangerous_tools,
+    default_dangerous_tools, ApprovalCallback, MuxBackend, MuxConfig, MuxMcpServerConfig,
 };
 
 use anyhow::Result;

@@ -23,3 +23,7 @@ futures.workspace = true
 
 # Proto types - use path dependency within coven workspace
 coven-proto = { path = "../coven-proto" }
+
+[dev-dependencies]
+# Crypto provider for TLS tests
+rustls = { version = "0.23", default-features = false, features = ["ring"] }

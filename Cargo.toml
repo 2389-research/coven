@@ -103,3 +103,4 @@ coven-admin = { path = "crates/coven-admin" }
 coven-matrix-rs = { path = "crates/coven-matrix-rs" }
 coven-slack-rs = { path = "crates/coven-slack-rs" }
 coven-telegram-rs = { path = "crates/coven-telegram-rs" }
+coven-serve = { path = "crates/coven-serve" }

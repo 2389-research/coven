@@ -6,8 +6,8 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{
-    SqlitePool,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    SqlitePool,
 };
 use std::path::Path;
 use std::str::FromStr;

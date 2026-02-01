@@ -344,13 +344,16 @@ mod tests {
 
     #[test]
     fn test_pack_config_load_gateway_url_env_override() {
-        with_env_vars(&[("COVEN_GATEWAY_URL", "https://gw.example.com:443")], || {
-            std::env::remove_var("GATEWAY_ADDR");
-            std::env::remove_var("COVEN_SERVER");
-            std::env::remove_var("COVEN_PORT");
-            let config = PackConfig::load("test-pack").unwrap();
-            assert_eq!(config.gateway_url, "https://gw.example.com:443");
-        });
+        with_env_vars(
+            &[("COVEN_GATEWAY_URL", "https://gw.example.com:443")],
+            || {
+                std::env::remove_var("GATEWAY_ADDR");
+                std::env::remove_var("COVEN_SERVER");
+                std::env::remove_var("COVEN_PORT");
+                let config = PackConfig::load("test-pack").unwrap();
+                assert_eq!(config.gateway_url, "https://gw.example.com:443");
+            },
+        );
     }
 
     #[test]

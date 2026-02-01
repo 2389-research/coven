@@ -215,7 +215,7 @@ mod tests {
     fn test_error_source_set_permissions() {
         use std::error::Error;
 
-        let io_err = io::Error::new(io::ErrorKind::Other, "error");
+        let io_err = io::Error::other("error");
         let err = SshError::SetPermissions {
             path: PathBuf::from("/path"),
             source: io_err,

@@ -45,20 +45,13 @@ async fn create_token(
     println!("{}", "Token created".green().bold());
     println!();
     println!("{}: {}", "Principal ID".dimmed(), principal_id);
-    println!(
-        "{}: {}",
-        "Expires".dimmed(),
-        format_ttl(ttl_seconds)
-    );
+    println!("{}: {}", "Expires".dimmed(), format_ttl(ttl_seconds));
     println!();
     println!("{}", "Token (save this now!):".yellow().bold());
     println!();
     println!("{}", token_response.token);
     println!();
-    println!(
-        "{}",
-        "This token will not be shown again.".red()
-    );
+    println!("{}", "This token will not be shown again.".red());
 
     Ok(())
 }

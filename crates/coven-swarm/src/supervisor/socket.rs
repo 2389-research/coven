@@ -75,10 +75,7 @@ pub fn socket_path(prefix: &str) -> PathBuf {
     temp_dir.join(format!("coven-swarm-{}.sock", prefix))
 }
 
-pub async fn run_socket_server(
-    path: PathBuf,
-    cmd_tx: mpsc::Sender<SocketCommand>,
-) -> Result<()> {
+pub async fn run_socket_server(path: PathBuf, cmd_tx: mpsc::Sender<SocketCommand>) -> Result<()> {
     // Remove existing socket
     let _ = std::fs::remove_file(&path);
 
@@ -96,10 +93,7 @@ pub async fn run_socket_server(
     }
 }
 
-async fn handle_connection(
-    stream: UnixStream,
-    cmd_tx: mpsc::Sender<SocketCommand>,
-) -> Result<()> {
+async fn handle_connection(stream: UnixStream, cmd_tx: mpsc::Sender<SocketCommand>) -> Result<()> {
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -294,9 +288,13 @@ impl SocketClient {
     /// Connect to supervisor socket
     pub async fn connect(prefix: &str) -> Result<Self> {
         let path = socket_path(prefix);
-        let stream = UnixStream::connect(&path)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to supervisor at {}: {}", path.display(), e))?;
+        let stream = UnixStream::connect(&path).await.map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to connect to supervisor at {}: {}",
+                path.display(),
+                e
+            )
+        })?;
         Ok(Self { stream })
     }
 
@@ -319,11 +317,13 @@ impl SocketClient {
     pub async fn status(&mut self) -> Result<StatusInfo> {
         let response = self.send_request(Request::Status).await?;
         if response.success {
-            response.status.ok_or_else(|| anyhow::anyhow!("No status in response"))
+            response
+                .status
+                .ok_or_else(|| anyhow::anyhow!("No status in response"))
         } else {
-            Err(anyhow::anyhow!(
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
-            ))
+            Err(anyhow::anyhow!(response
+                .error
+                .unwrap_or_else(|| "Unknown error".to_string())))
         }
     }
 
@@ -333,9 +333,9 @@ impl SocketClient {
         if response.success {
             Ok(())
         } else {
-            Err(anyhow::anyhow!(
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
-            ))
+            Err(anyhow::anyhow!(response
+                .error
+                .unwrap_or_else(|| "Unknown error".to_string())))
         }
     }
 
@@ -343,11 +343,13 @@ impl SocketClient {
     pub async fn list(&mut self) -> Result<Vec<String>> {
         let response = self.send_request(Request::List).await?;
         if response.success {
-            response.workspaces.ok_or_else(|| anyhow::anyhow!("No workspaces in response"))
+            response
+                .workspaces
+                .ok_or_else(|| anyhow::anyhow!("No workspaces in response"))
         } else {
-            Err(anyhow::anyhow!(
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
-            ))
+            Err(anyhow::anyhow!(response
+                .error
+                .unwrap_or_else(|| "Unknown error".to_string())))
         }
     }
 }

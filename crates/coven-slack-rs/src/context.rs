@@ -8,18 +8,14 @@ use crate::config::ResponseMode;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlackContext {
     /// Message in a public or private channel (not in a thread).
-    Channel {
-        channel_id: String,
-    },
+    Channel { channel_id: String },
     /// Message in a thread within a channel.
     Thread {
         channel_id: String,
         thread_ts: String,
     },
     /// Direct message (1:1 or group DM).
-    DirectMessage {
-        channel_id: String,
-    },
+    DirectMessage { channel_id: String },
 }
 
 impl SlackContext {
@@ -72,9 +68,7 @@ impl SlackContext {
             // Always respond in DMs
             SlackContext::DirectMessage { .. } => true,
             // In channels: check mention and response mode
-            SlackContext::Channel { .. } => {
-                is_mention || response_mode == ResponseMode::All
-            }
+            SlackContext::Channel { .. } => is_mention || response_mode == ResponseMode::All,
         }
     }
 
@@ -103,7 +97,8 @@ mod tests {
 
     #[test]
     fn test_context_from_event_thread() {
-        let ctx = SlackContext::from_event("C123".to_string(), Some("1234.5678".to_string()), false);
+        let ctx =
+            SlackContext::from_event("C123".to_string(), Some("1234.5678".to_string()), false);
         assert!(matches!(ctx, SlackContext::Thread { .. }));
         assert_eq!(ctx.channel_id(), "C123");
         assert_eq!(ctx.thread_ts(), Some("1234.5678"));

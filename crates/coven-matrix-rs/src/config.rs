@@ -50,9 +50,7 @@ fn default_typing_indicator() -> bool {
 impl Config {
     pub fn load(path: Option<PathBuf>) -> Result<Self> {
         let path = path
-            .or_else(|| {
-                dirs::config_dir().map(|d| d.join("coven").join("matrix-bridge.toml"))
-            })
+            .or_else(|| dirs::config_dir().map(|d| d.join("coven").join("matrix-bridge.toml")))
             .ok_or_else(|| BridgeError::Config("Could not determine config path".into()))?;
 
         let contents = std::fs::read_to_string(&path).map_err(|e| {

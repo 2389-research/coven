@@ -41,20 +41,21 @@ pub fn render(f: &mut Frame, app: &App) {
     );
 
     let title = if approval_count > 1 {
-        format!(" Tool Approval Required ({}/{}) ", current_idx, approval_count)
+        format!(
+            " Tool Approval Required ({}/{}) ",
+            current_idx, approval_count
+        )
     } else {
         " Tool Approval Required ".to_string()
     };
 
-    let paragraph = Paragraph::new(content)
-        .wrap(Wrap { trim: false })
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().yellow())
-                .title(title)
-                .title_style(Style::default().bold().yellow()),
-        );
+    let paragraph = Paragraph::new(content).wrap(Wrap { trim: false }).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().yellow())
+            .title(title)
+            .title_style(Style::default().bold().yellow()),
+    );
 
     f.render_widget(paragraph, area);
 }

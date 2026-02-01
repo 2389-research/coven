@@ -35,7 +35,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     // Working directory
     if let Some(dir) = &app.session.working_dir {
         let display = truncate_path(dir, 20);
-        spans.push(Span::styled(format!("│ {} ", display), Style::default().dim()));
+        spans.push(Span::styled(
+            format!("│ {} ", display),
+            Style::default().dim(),
+        ));
     }
 
     // Tokens
@@ -48,7 +51,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
 
     // Error or Ctrl+C hint
     if let Some(err) = &app.error {
-        spans.push(Span::styled(format!("│ ✗ {} ", err), Style::default().red()));
+        spans.push(Span::styled(
+            format!("│ ✗ {} ", err),
+            Style::default().red(),
+        ));
     } else if app.show_ctrl_c_hint() {
         spans.push(Span::styled(
             "│ Press Ctrl+C again to quit ",

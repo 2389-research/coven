@@ -39,9 +39,9 @@ pub struct AgentOptions {
 
 /// Run the supervisor daemon
 pub async fn run_supervisor(options: SupervisorOptions) -> Result<()> {
-    let config_path = options.config_path.unwrap_or_else(|| {
-        Config::default_path().expect("Failed to get default config path")
-    });
+    let config_path = options
+        .config_path
+        .unwrap_or_else(|| Config::default_path().expect("Failed to get default config path"));
     let config = Config::load(&config_path)?;
     let working_dir = config.working_directory_expanded();
 
@@ -267,9 +267,9 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
     tracing::info!(fingerprint = %fingerprint, "SSH key loaded");
 
     // Load config
-    let config_path = options.config_path.unwrap_or_else(|| {
-        Config::default_path().expect("Failed to get default config path")
-    });
+    let config_path = options
+        .config_path
+        .unwrap_or_else(|| Config::default_path().expect("Failed to get default config path"));
     let config = Config::load(&config_path)?;
 
     let working_dir = config.working_directory_expanded().join(&options.workspace);
@@ -314,7 +314,9 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
         backend
             .register_tool(DeleteWorkspaceTool::new(config.prefix.clone()))
             .await;
-        tracing::info!("Registered dispatch tools: list_agents, create_workspace, delete_workspace");
+        tracing::info!(
+            "Registered dispatch tools: list_agents, create_workspace, delete_workspace"
+        );
 
         mux_backend = Some(backend.clone());
         let handle = BackendHandle::new_from_arc(backend);
@@ -376,7 +378,9 @@ pub async fn run_agent(options: AgentOptions) -> Result<()> {
                 #[cfg(not(feature = "acp"))]
                 {
                     // Fallback to MuxBackend when ACP feature is not enabled
-                    tracing::warn!("ACP backend requested but feature not enabled, falling back to Mux");
+                    tracing::warn!(
+                        "ACP backend requested but feature not enabled, falling back to Mux"
+                    );
                     let mux_config = MuxConfig {
                         model: "claude-sonnet-4-20250514".to_string(),
                         max_tokens: 8192,
