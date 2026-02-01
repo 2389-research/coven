@@ -202,6 +202,37 @@ jobs:
             artifacts/**/*.xcframework.zip
             artifacts/**/*-android-*.zip
 
+  publish-crates:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "25.x"
+
+      - name: Publish crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          # Publish in dependency order
+          cargo publish -p coven-proto --no-verify || true
+          sleep 30
+          cargo publish -p coven-ssh --no-verify || true
+          sleep 30
+          cargo publish -p coven-grpc --no-verify || true
+          sleep 30
+          cargo publish -p coven-client --no-verify || true
+
   homebrew:
     name: Update Homebrew Formula
     needs: release
