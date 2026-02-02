@@ -11,10 +11,22 @@ struct Cli {
     /// Config file path
     #[arg(short, long, env = "COVEN_MATRIX_CONFIG")]
     config: Option<std::path::PathBuf>,
+
+    /// Run interactive setup wizard
+    #[arg(long)]
+    setup: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    // Run setup wizard if requested (no logging needed)
+    if cli.setup {
+        return coven_matrix_rs::setup::run_setup().map_err(Into::into);
+    }
+
+    // Initialize logging for normal operation
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
@@ -22,6 +34,5 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    let cli = Cli::parse();
     coven_matrix_rs::run(cli.config).await
 }

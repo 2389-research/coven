@@ -15,8 +15,14 @@ password = "${MATRIX_PASSWORD}"
 # state_dir = "~/.local/share/coven-matrix-bridge"
 
 [gateway]
-# Coven gateway gRPC URL
-url = "http://localhost:6666"
+# Coven gateway hostname
+host = "localhost"
+
+# Coven gateway gRPC port (default: 6666)
+port = 6666
+
+# Use TLS for gRPC connection (default: false, set true for production)
+tls = false
 
 # Authentication token (from coven-link or gateway admin)
 token = "${COVEN_TOKEN}"
@@ -25,6 +31,12 @@ token = "${COVEN_TOKEN}"
 # Optional: Restrict to specific rooms (empty = allow all)
 allowed_rooms = [
     # "!roomid:matrix.org",
+]
+
+# Optional: Restrict to specific Matrix users (empty = allow all)
+allowed_senders = [
+    # "@youruser:matrix.org",
+    # "@trusted-friend:example.com",
 ]
 
 # Optional: Only respond to messages with this prefix

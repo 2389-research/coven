@@ -9,7 +9,7 @@ use coven_proto::{
 };
 use tonic::transport::Channel;
 use tonic::{Request, Status};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 /// gRPC client for communicating with coven-gateway's ClientService.
 pub struct GatewayClient {
@@ -69,17 +69,39 @@ impl GatewayClient {
         content: String,
         idempotency_key: String,
     ) -> Result<ClientSendMessageResponse> {
-        debug!(conversation_key = %conversation_key, "Sending message to gateway");
+        info!(
+            conversation_key = %conversation_key,
+            content_len = content.len(),
+            idempotency_key = %idempotency_key,
+            "Sending message to gateway"
+        );
 
         let request = ClientSendMessageRequest {
-            conversation_key,
+            conversation_key: conversation_key.clone(),
             content,
             attachments: vec![],
             idempotency_key,
         };
 
-        let response = self.client.send_message(request).await?;
-        Ok(response.into_inner())
+        let response = self.client.send_message(request).await;
+        match &response {
+            Ok(r) => {
+                let inner = r.get_ref();
+                info!(
+                    status = %inner.status,
+                    message_id = %inner.message_id,
+                    "Gateway accepted message"
+                );
+            }
+            Err(e) => {
+                error!(
+                    error = %e,
+                    conversation_key = %conversation_key,
+                    "Gateway rejected message"
+                );
+            }
+        }
+        Ok(response?.into_inner())
     }
 
     /// Stream events from the gateway for a given conversation.

@@ -1,4 +1,4 @@
-// ABOUTME: Handles /coven commands in Matrix rooms for binding management.
+// ABOUTME: Handles !coven commands in Matrix rooms for binding management.
 // ABOUTME: Supports bind, unbind, status, and agents commands.
 
 use crate::bridge::RoomBinding;
@@ -11,11 +11,12 @@ use tokio::sync::RwLock;
 use tracing::info;
 
 pub enum Command {
-    Bind(String), // /coven bind <agent-id>
-    Unbind,       // /coven unbind
-    Status,       // /coven status
-    Agents,       // /coven agents
-    Help,         // /coven help
+    Bind(String), // !coven bind <agent-id>
+    Unbind,       // !coven unbind
+    Status,       // !coven status
+    Agents,       // !coven agents
+    Rooms,        // !coven rooms (DM only - list user's bound rooms)
+    Help,         // !coven help
     Unknown(String),
 }
 
@@ -23,8 +24,8 @@ impl Command {
     pub fn parse(input: &str) -> Option<Command> {
         let input = input.trim();
 
-        // Check for /coven prefix
-        let rest = input.strip_prefix("/coven")?.trim();
+        // Check for !coven prefix
+        let rest = input.strip_prefix("!coven")?.trim();
 
         if rest.is_empty() || rest == "help" {
             return Some(Command::Help);
@@ -35,12 +36,13 @@ impl Command {
             "bind" => match parts.get(1).map(|s| s.trim().to_string()) {
                 Some(agent_id) if !agent_id.is_empty() => Some(Command::Bind(agent_id)),
                 _ => Some(Command::Unknown(
-                    "bind (requires agent-id, e.g., /coven bind agent-123)".to_string(),
+                    "bind (requires agent-id, e.g., !coven bind ef2bbe1b-f0f)".to_string(),
                 )),
             },
             "unbind" => Some(Command::Unbind),
             "status" => Some(Command::Status),
             "agents" => Some(Command::Agents),
+            "rooms" => Some(Command::Rooms),
             "help" => Some(Command::Help),
             other => Some(Command::Unknown(other.to_string())),
         }
@@ -67,7 +69,7 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
                 .insert(ctx.room_id.clone(), binding);
             info!(room_id = %ctx.room_id, agent_id = %agent_id, "Room bound to agent via command");
             Ok(format!(
-                "Bound this room to agent: {}\nUse `/coven status` to verify.",
+                "🔗 Bound this room to agent: {}\nUse `!coven status` to verify.",
                 agent_id
             ))
         }
@@ -86,11 +88,11 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
             let bindings = ctx.bindings.read().await;
             match bindings.get(ctx.room_id) {
                 Some(binding) => Ok(format!(
-                    "Status: Bound to agent `{}`\nRoom ID: {}",
+                    "📊 Status: Bound to agent `{}`\nRoom ID: {}",
                     binding.conversation_key, ctx.room_id
                 )),
                 None => Ok(format!(
-                    "Status: No agent bound to this room.\nRoom ID: {}\nUse `/coven bind <agent-id>` to bind an agent.",
+                    "📊 Status: No agent bound to this room.\nRoom ID: {}\nUse `!coven bind <agent-id>` to bind an agent.",
                     ctx.room_id
                 )),
             }
@@ -100,32 +102,41 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
             let agents = gateway.list_agents().await?;
 
             if agents.is_empty() {
-                Ok("No agents currently online.".to_string())
+                Ok("📭 No agents currently online.".to_string())
             } else {
-                let mut response = String::from("Online agents:\n");
-                for agent in agents {
-                    response.push_str(&format!(
-                        "- {} ({})\n",
-                        agent.id,
-                        agent
-                            .metadata
-                            .as_ref()
-                            .map(|m| m.working_directory.as_str())
-                            .unwrap_or("unknown")
-                    ));
+                let mut response = String::from("🤖 Online agents:\n\n");
+                for agent in &agents {
+                    let dir = agent
+                        .metadata
+                        .as_ref()
+                        .map(|m| m.working_directory.as_str())
+                        .unwrap_or("unknown");
+
+                    response.push_str(&format!("• `{}`\n", agent.id));
+                    response.push_str(&format!("  📁 {}\n", dir));
+                    response.push_str(&format!("  → `!coven bind {}`\n\n", agent.id));
                 }
                 Ok(response)
             }
         }
-        Command::Help => Ok(r#"Coven Bridge Commands:
-- /coven bind <agent-id> - Bind this room to an agent
-- /coven unbind - Unbind this room from current agent
-- /coven status - Show current binding status
-- /coven agents - List available agents
-- /coven help - Show this help message"#
+        Command::Rooms => {
+            // This is handled specially in bridge.rs for DMs
+            Ok("Use `!coven rooms` in a DM with me to see your bound rooms.".to_string())
+        }
+        Command::Help => Ok(r#"🌙 Coven Bridge Commands:
+
+In a DM with me:
+  !coven bind <id>  - Create a room bound to an agent
+  !coven agents     - List available agents
+  !coven rooms      - List your bound rooms
+
+In a bound room:
+  !coven status     - Show current binding
+  !coven unbind     - Unbind this room
+  !coven help       - Show this help"#
             .to_string()),
         Command::Unknown(cmd) => Ok(format!(
-            "Unknown command: {}\nUse `/coven help` for available commands.",
+            "Unknown command: {}\nUse `!coven help` for available commands.",
             cmd
         )),
     }

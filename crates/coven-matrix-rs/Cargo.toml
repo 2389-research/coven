@@ -17,6 +17,7 @@ path = "src/main.rs"
 # Internal crates
 coven-proto.workspace = true
 coven-grpc.workspace = true
+coven-link.workspace = true
 
 # Async runtime
 tokio = { workspace = true, features = ["full", "signal"] }
@@ -44,6 +45,11 @@ thiserror.workspace = true
 
 # CLI
 clap = { workspace = true, features = ["derive", "env"] }
+dialoguer.workspace = true
+
+# TUI (for setup wizard)
+ratatui.workspace = true
+crossterm.workspace = true
 
 # Utilities
 uuid = { workspace = true, features = ["v4"] }

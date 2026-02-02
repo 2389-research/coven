@@ -11,7 +11,7 @@ use coven_proto::client_stream_event::Payload;
 use futures::StreamExt;
 use matrix_sdk::{
     config::SyncSettings, ruma::events::room::message::OriginalSyncRoomMessageEvent,
-    ruma::OwnedRoomId, RoomState,
+    ruma::OwnedRoomId, RoomMemberships, RoomState,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -45,7 +45,8 @@ impl Bridge {
 
         // Connect to Gateway
         let gateway =
-            GatewayClient::connect(&config.gateway.url, config.gateway.token.clone()).await?;
+            GatewayClient::connect(&config.gateway.endpoint_uri(), config.gateway.token.clone())
+                .await?;
 
         // Do an initial sync to populate room list
         matrix.sync_once().await?;
@@ -129,16 +130,139 @@ impl Bridge {
                         return;
                     }
 
+                    // Check if sender is allowed
+                    if !config.is_sender_allowed(event.sender.as_str()) {
+                        debug!(sender = %event.sender, "Message from non-allowed sender, ignoring");
+                        return;
+                    }
+
                     // Extract text content
                     let Some(text) = extract_text_content(&event) else {
                         debug!(room_id = %room_id, "Non-text message, ignoring");
                         return;
                     };
 
-                    // Check for /coven commands FIRST, before binding check
+                    // Check for !coven commands FIRST, before binding check
                     // Commands work regardless of room binding status
                     if let Some(command) = Command::parse(&text) {
-                        info!(room_id = %room_id, sender = %event.sender, "Processing /coven command");
+                        info!(room_id = %room_id, sender = %event.sender, "Processing !coven command");
+
+                        // Check if this is a DM (direct room with just bot + user)
+                        let is_dm = room.is_direct().await.unwrap_or(false) && {
+                            let members = room.members(RoomMemberships::ACTIVE).await;
+                            members.map(|m| m.len() == 2).unwrap_or(false)
+                        };
+
+                        // Handle DM-specific bind command: create room + invite + bind
+                        if is_dm {
+                            if let Command::Bind(agent_id) = &command {
+                                info!(agent_id = %agent_id, sender = %event.sender, "DM bind: checking agent exists");
+
+                                // First, verify the agent exists in the gateway
+                                let agent_exists = {
+                                    let mut gw = gateway.write().await;
+                                    match gw.list_agents().await {
+                                        Ok(agents) => agents.iter().any(|a| a.id == *agent_id),
+                                        Err(e) => {
+                                            error!(error = %e, "Failed to list agents");
+                                            let error_response = format!("❌ Failed to connect to gateway: {}", e);
+                                            let _ = room.send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&error_response)).await;
+                                            return;
+                                        }
+                                    }
+                                };
+
+                                if !agent_exists {
+                                    warn!(agent_id = %agent_id, "Agent not found in gateway");
+                                    let error_response = format!(
+                                        "❌ Agent `{}` not found.\n\nUse `!coven agents` to see available agents.",
+                                        agent_id
+                                    );
+                                    let _ = room.send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&error_response)).await;
+                                    return;
+                                }
+
+                                info!(agent_id = %agent_id, sender = %event.sender, "DM bind: creating room for user");
+
+                                // Get the Matrix client to create the room
+                                let room_name = agent_id.clone();
+
+                                // Create room request
+                                let mut request = matrix_sdk::ruma::api::client::room::create_room::v3::Request::new();
+                                request.name = Some(room_name.clone());
+                                request.invite = vec![event.sender.clone()];
+                                request.is_direct = false; // Agent rooms are not DMs
+
+                                // Get the underlying client from the room
+                                let client = room.client();
+                                match client.create_room(request).await {
+                                    Ok(response) => {
+                                        let new_room_id = response.room_id().to_owned();
+                                        info!(new_room_id = %new_room_id, agent_id = %agent_id, "Created agent room");
+
+                                        // Bind the new room
+                                        let binding = crate::bridge::RoomBinding {
+                                            room_id: new_room_id.clone(),
+                                            conversation_key: agent_id.clone(),
+                                        };
+                                        bindings.write().await.insert(new_room_id.clone(), binding);
+
+                                        // Send success message in DM
+                                        let dm_response = format!(
+                                            "✨ Created room **{}** and bound to agent `{}`\n\nAccept the invite to start chatting!",
+                                            room_name, agent_id
+                                        );
+                                        if let Err(e) = room
+                                            .send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&dm_response))
+                                            .await
+                                        {
+                                            error!(error = %e, "Failed to send DM response");
+                                        }
+
+                                        // Send welcome in the new room (after a short delay for room setup)
+                                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                                        if let Some(new_room) = client.get_room(&new_room_id) {
+                                            let welcome = format!(
+                                                "🔗 Connected to agent `{}`\n\nStart chatting! Use `!coven status` to check the binding or `!coven unbind` to disconnect.",
+                                                agent_id
+                                            );
+                                            if let Err(e) = new_room
+                                                .send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&welcome))
+                                                .await
+                                            {
+                                                warn!(error = %e, "Failed to send welcome to new room");
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!(error = %e, "Failed to create room for DM bind");
+                                        let error_response = format!("❌ Failed to create room: {}", e);
+                                        let _ = room
+                                            .send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&error_response))
+                                            .await;
+                                    }
+                                }
+                                return;
+                            }
+
+                            // Handle !coven rooms in DM - list user's bound rooms
+                            if let Command::Rooms = &command {
+                                let bindings_read = bindings.read().await;
+                                if bindings_read.is_empty() {
+                                    let response = "You have no bound rooms.\n\nUse `!coven bind <agent-id>` to create one.";
+                                    let _ = room.send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(response)).await;
+                                } else {
+                                    let mut response = String::from("📋 Your bound rooms:\n\n");
+                                    for binding in bindings_read.values() {
+                                        response.push_str(&format!("• `{}` → {}\n", binding.conversation_key, binding.room_id));
+                                    }
+                                    let _ = room.send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&response)).await;
+                                }
+                                return;
+                            }
+                        }
+
+                        // Regular command execution for non-DM rooms or other commands
                         let ctx = CommandContext {
                             gateway: &gateway,
                             bindings: &bindings,
@@ -191,7 +315,8 @@ impl Bridge {
                         room_id = %room_id,
                         sender = %event.sender,
                         conversation_key = %binding.conversation_key,
-                        "Processing message"
+                        message_preview = %text.chars().take(50).collect::<String>(),
+                        "Forwarding message to gateway"
                     );
 
                     // Process the message
@@ -205,8 +330,20 @@ impl Bridge {
                     .await
                     {
                         error!(error = %e, room_id = %room_id, "Failed to process message");
-                        // Try to send error to room
-                        let error_msg = format!("Error: {}", e);
+
+                        // Create a user-friendly error message
+                        let error_str = e.to_string().to_lowercase();
+                        let error_msg = if error_str.contains("agent not found") || error_str.contains("not found") {
+                            format!(
+                                "⚠️ Agent `{}` is offline or disconnected.\n\nThe agent needs to be running to receive messages. Use `!coven agents` to see online agents.",
+                                binding.conversation_key
+                            )
+                        } else if error_str.contains("connection") || error_str.contains("unavailable") {
+                            "⚠️ Unable to reach the gateway. Please try again later.".to_string()
+                        } else {
+                            format!("❌ Error: {}", e)
+                        };
+
                         if let Err(send_err) = room
                             .send(
                                 matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&error_msg),

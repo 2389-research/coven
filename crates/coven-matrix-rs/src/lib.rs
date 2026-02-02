@@ -7,6 +7,7 @@ pub mod config;
 pub mod error;
 pub mod gateway;
 pub mod matrix;
+pub mod setup;
 
 pub use bridge::Bridge;
 pub use config::Config;
@@ -25,7 +26,7 @@ pub async fn run(config_path: Option<PathBuf>) -> anyhow::Result<()> {
     let config = Config::load(config_path)?;
     info!(
         homeserver = %config.matrix.homeserver,
-        gateway = %config.gateway.url,
+        gateway = %config.gateway.endpoint_uri(),
         "Configuration loaded"
     );
 

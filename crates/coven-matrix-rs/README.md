@@ -8,7 +8,17 @@ Rust Matrix bridge for coven-gateway. Routes messages between Matrix rooms and c
 cargo install --path .
 ```
 
-## Configuration
+## Quick Start
+
+Run the interactive setup wizard:
+
+```bash
+coven-matrix-bridge --setup
+```
+
+This walks you through configuring the bridge and saves the config to `~/.config/coven/matrix-bridge.toml`.
+
+## Manual Configuration
 
 Create `~/.config/coven/matrix-bridge.toml`:
 
@@ -19,10 +29,16 @@ username = "@your-bot:matrix.org"
 password = "${MATRIX_PASSWORD}"
 
 [gateway]
-url = "http://localhost:6666"
+host = "localhost"
+port = 6666
+tls = false
 token = "${COVEN_TOKEN}"
 
 [bridge]
+# Restrict to specific rooms (empty = allow all)
+allowed_rooms = []
+# Restrict to specific users (empty = allow all)
+allowed_senders = []
 typing_indicator = true
 ```
 
@@ -41,13 +57,24 @@ COVEN_MATRIX_CONFIG=/path/to/config.toml coven-matrix-bridge
 
 ## Commands
 
-In any Matrix room where the bot is present:
+**In a DM with the bot:**
 
-- `/coven bind <agent-id>` - Bind room to an agent
-- `/coven unbind` - Unbind room from agent
-- `/coven status` - Show current binding
-- `/coven agents` - List available agents
-- `/coven help` - Show help
+- `!coven bind <bind-id>` - Create a room bound to an agent (e.g., `!coven bind ef2bbe1b-f0f`)
+- `!coven agents` - List available agents
+- `!coven rooms` - List your bound rooms
+- `!coven help` - Show help
+
+**In a bound room:**
+
+- `!coven status` - Show current binding
+- `!coven unbind` - Unbind room from agent
+- `!coven help` - Show help
+
+### Quick Start Flow
+
+1. DM the bot: `!coven bind <agent-bind-id>`
+2. Accept the room invite
+3. Start chatting with the agent!
 
 ## Environment Variables
 

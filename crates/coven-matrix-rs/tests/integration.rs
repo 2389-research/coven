@@ -8,35 +8,35 @@ use tempfile::NamedTempFile;
 
 #[test]
 fn test_command_parsing() {
-    assert!(matches!(Command::parse("/coven help"), Some(Command::Help)));
-    assert!(matches!(Command::parse("/coven"), Some(Command::Help)));
+    assert!(matches!(Command::parse("!coven help"), Some(Command::Help)));
+    assert!(matches!(Command::parse("!coven"), Some(Command::Help)));
     assert!(matches!(
-        Command::parse("/coven agents"),
+        Command::parse("!coven agents"),
         Some(Command::Agents)
     ));
     assert!(matches!(
-        Command::parse("/coven status"),
+        Command::parse("!coven status"),
         Some(Command::Status)
     ));
     assert!(matches!(
-        Command::parse("/coven unbind"),
+        Command::parse("!coven unbind"),
         Some(Command::Unbind)
     ));
     assert!(matches!(
-        Command::parse("/coven bind agent-123"),
+        Command::parse("!coven bind agent-123"),
         Some(Command::Bind(id)) if id == "agent-123"
     ));
     assert!(matches!(
-        Command::parse("/coven unknown"),
+        Command::parse("!coven unknown"),
         Some(Command::Unknown(cmd)) if cmd == "unknown"
     ));
-    // /coven bind without agent-id should return Unknown with helpful message
+    // !coven bind without agent-id should return Unknown with helpful message
     assert!(matches!(
-        Command::parse("/coven bind"),
+        Command::parse("!coven bind"),
         Some(Command::Unknown(cmd)) if cmd.contains("requires agent-id")
     ));
     assert!(matches!(
-        Command::parse("/coven bind   "),
+        Command::parse("!coven bind   "),
         Some(Command::Unknown(cmd)) if cmd.contains("requires agent-id")
     ));
     assert!(Command::parse("hello world").is_none());
@@ -52,7 +52,9 @@ username = "@bot:matrix.org"
 password = "secret"
 
 [gateway]
-url = "http://localhost:6666"
+host = "localhost"
+port = 6666
+tls = false
 token = "test-token"
 
 [bridge]
@@ -67,7 +69,10 @@ typing_indicator = false
 
     assert_eq!(config.matrix.homeserver, "https://matrix.org");
     assert_eq!(config.matrix.username, "@bot:matrix.org");
-    assert_eq!(config.gateway.url, "http://localhost:6666");
+    assert_eq!(config.gateway.host, "localhost");
+    assert_eq!(config.gateway.port, 6666);
+    assert!(!config.gateway.tls);
+    assert_eq!(config.gateway.endpoint_uri(), "http://localhost:6666");
     assert_eq!(config.bridge.allowed_rooms.len(), 1);
     assert!(!config.bridge.typing_indicator);
 }
@@ -81,7 +86,8 @@ username = "@bot:matrix.org"
 password = "secret"
 
 [gateway]
-url = "http://localhost:6666"
+host = "localhost"
+port = 6666
 
 [bridge]
 allowed_rooms = ["!allowed:matrix.org"]
@@ -105,7 +111,8 @@ username = "@bot:matrix.org"
 password = "secret"
 
 [gateway]
-url = "http://localhost:6666"
+host = "localhost"
+port = 6666
 
 [bridge]
 allowed_rooms = []
@@ -129,7 +136,8 @@ username = "@bot:matrix.org"
 password = ""
 
 [gateway]
-url = "http://localhost:6666"
+host = "localhost"
+port = 6666
 "#;
 
     let mut file = NamedTempFile::new().unwrap();
