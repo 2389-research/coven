@@ -79,13 +79,23 @@ fn print_exit_message() {
 }
 
 fn main() {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(tracing::Level::INFO.into()),
-        )
-        .init();
+    // Initialize tracing - log to file to avoid corrupting TUI
+    let log_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("coven");
+    let _ = std::fs::create_dir_all(&log_dir);
+    let log_file = std::fs::File::create(log_dir.join("tui.log")).ok();
+
+    if let Some(file) = log_file {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::from_default_env()
+                    .add_directive(tracing::Level::INFO.into()),
+            )
+            .with_writer(file)
+            .with_ansi(false)
+            .init();
+    }
 
     let cli = Cli::parse();
 
