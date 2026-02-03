@@ -1,0 +1,42 @@
+# ABOUTME: Dockerfile for coven Telegram bridge
+# ABOUTME: Connects Telegram chats to coven-gateway agents via long polling
+
+FROM rustlang/rust:nightly-bookworm AS builder
+
+WORKDIR /app
+
+# Install protobuf compiler with well-known types
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler \
+    libprotobuf-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY proto ./proto
+
+# Build release binary
+RUN cargo build --release -p coven-telegram-rs
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /app/target/release/coven-telegram-bridge /usr/local/bin/coven-telegram-bridge
+
+# Create config directory
+RUN mkdir -p /root/.config/coven
+
+ENV RUST_LOG=coven_telegram_rs=info
+ENV COVEN_TELEGRAM_CONFIG=/root/.config/coven/telegram-bridge.toml
+
+CMD ["coven-telegram-bridge"]

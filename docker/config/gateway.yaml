@@ -1,0 +1,11 @@
+# ABOUTME: Gateway config placeholder for Docker deployment
+# ABOUTME: Configure according to coven-gateway documentation
+
+server:
+  grpc_port: 6666
+  http_port: 8080
+
+storage:
+  path: /app/data/gateway.db
+
+# Add your gateway-specific configuration here

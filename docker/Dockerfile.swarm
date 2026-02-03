@@ -1,0 +1,47 @@
+# ABOUTME: Dockerfile for coven-swarm supervisor/orchestration
+# ABOUTME: Manages multiple agent workspaces and coordinates tasks
+
+FROM rustlang/rust:nightly-bookworm AS builder
+
+WORKDIR /app
+
+# Install protobuf compiler with well-known types
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler \
+    libprotobuf-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY proto ./proto
+
+# Build release binary
+RUN cargo build --release -p coven-swarm
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /app/target/release/coven-swarm /usr/local/bin/coven-swarm
+
+# Create directories
+RUN mkdir -p /workspaces /root/.config/coven /app/data
+
+# Generate SSH key for swarm agents
+RUN ssh-keygen -t ed25519 -f /root/.config/coven/agent_key -N "" -q
+
+WORKDIR /workspaces
+
+ENV RUST_LOG=coven_swarm=info
+
+CMD ["coven-swarm", "supervisor"]

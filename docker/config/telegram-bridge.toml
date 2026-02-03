@@ -1,0 +1,22 @@
+# ABOUTME: Telegram bridge config for Docker deployment
+# ABOUTME: Environment variables are expanded with ${VAR_NAME} syntax
+
+[telegram]
+# Bot token from @BotFather
+bot_token = "${TELEGRAM_BOT_TOKEN}"
+
+[gateway]
+# Gateway URL (Docker service name)
+url = "http://gateway:6666"
+token = "${COVEN_TOKEN}"
+
+[bridge]
+# Restrict to specific chat IDs (empty = allow all)
+# Private chats: positive IDs, Groups: negative IDs
+allowed_chats = []
+
+# Response mode: "mention" or "all"
+response_mode = "mention"
+
+# Reply using Telegram's reply-to feature
+thread_replies = true

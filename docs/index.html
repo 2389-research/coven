@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>coven — AI Agent Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --void: #0a0a0c;
+            --obsidian: #12121a;
+            --smoke: #1a1a24;
+            --ash: #2a2a3a;
+            --mist: #8888aa;
+            --bone: #d4d4e4;
+            --sigil: #7c3aed;
+            --ember: #f472b6;
+            --ether: #22d3ee;
+            --ritual: linear-gradient(135deg, var(--sigil) 0%, var(--ember) 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--void);
+            color: var(--bone);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Mystical background effect */
+        .void-bg {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(244, 114, 182, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(34, 211, 238, 0.03) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .grain {
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        main {
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, var(--void) 0%, transparent 100%);
+            z-index: 100;
+        }
+
+        .logo {
+            font-family: 'Instrument Serif', serif;
+            font-size: 1.5rem;
+            font-style: italic;
+            color: var(--bone);
+            text-decoration: none;
+            letter-spacing: 0.05em;
+        }
+
+        .logo::before {
+            content: '⬡ ';
+            color: var(--sigil);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--mist);
+            text-decoration: none;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--ether);
+        }
+
+        /* Hero */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 6rem 2rem;
+            position: relative;
+        }
+
+        .sigil {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 3rem;
+            position: relative;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .sigil svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 0 30px rgba(124, 58, 237, 0.5));
+        }
+
+        .sigil-glow {
+            position: absolute;
+            inset: -20px;
+            background: radial-gradient(circle, rgba(124, 58, 237, 0.3) 0%, transparent 70%);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+
+        h1 {
+            font-family: 'Instrument Serif', serif;
+            font-size: clamp(4rem, 12vw, 10rem);
+            font-weight: 400;
+            font-style: italic;
+            letter-spacing: -0.02em;
+            line-height: 0.9;
+            margin-bottom: 1.5rem;
+            background: var(--ritual);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            font-size: 1.1rem;
+            color: var(--mist);
+            max-width: 500px;
+            line-height: 1.8;
+            margin-bottom: 3rem;
+        }
+
+        .cta-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            font-family: inherit;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--ritual);
+            color: white;
+            border-radius: 2px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--mist);
+            border: 1px solid var(--ash);
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--ether);
+            color: var(--ether);
+        }
+
+        /* Terminal showcase */
+        .terminal-section {
+            padding: 8rem 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .terminal {
+            background: var(--obsidian);
+            border: 1px solid var(--ash);
+            border-radius: 8px;
+            width: 100%;
+            max-width: 700px;
+            overflow: hidden;
+            box-shadow:
+                0 0 0 1px rgba(255,255,255,0.05),
+                0 20px 70px rgba(0,0,0,0.5),
+                0 0 100px rgba(124, 58, 237, 0.1);
+        }
+
+        .terminal-header {
+            background: var(--smoke);
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--ash);
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot:nth-child(1) { background: #ff5f57; }
+        .terminal-dot:nth-child(2) { background: #febc2e; }
+        .terminal-dot:nth-child(3) { background: #28c840; }
+
+        .terminal-title {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--mist);
+        }
+
+        .terminal-body {
+            padding: 1.5rem;
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .terminal-line {
+            opacity: 0;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        .terminal-line:nth-child(1) { animation-delay: 0.2s; }
+        .terminal-line:nth-child(2) { animation-delay: 0.6s; }
+        .terminal-line:nth-child(3) { animation-delay: 1s; }
+        .terminal-line:nth-child(4) { animation-delay: 1.4s; }
+        .terminal-line:nth-child(5) { animation-delay: 1.8s; }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .prompt { color: var(--ether); }
+        .command { color: var(--bone); }
+        .comment { color: var(--mist); }
+        .success { color: #28c840; }
+        .highlight { color: var(--ember); }
+
+        /* Features */
+        .features {
+            padding: 8rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--sigil);
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-family: 'Instrument Serif', serif;
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-style: italic;
+            margin-bottom: 4rem;
+            max-width: 600px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, var(--obsidian) 0%, var(--smoke) 100%);
+            border: 1px solid var(--ash);
+            padding: 2.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s ease;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--ritual);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.4s ease;
+        }
+
+        .feature-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--sigil);
+            box-shadow: 0 20px 60px rgba(124, 58, 237, 0.15);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+
+        .feature-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--bone);
+        }
+
+        .feature-card p {
+            color: var(--mist);
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .feature-card code {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.3rem 0.6rem;
+            background: var(--void);
+            border: 1px solid var(--ash);
+            font-size: 0.8rem;
+            color: var(--ether);
+        }
+
+        /* Architecture diagram */
+        .architecture {
+            padding: 8rem 2rem;
+            text-align: center;
+        }
+
+        .arch-diagram {
+            max-width: 900px;
+            margin: 4rem auto 0;
+            padding: 3rem;
+            background: var(--obsidian);
+            border: 1px solid var(--ash);
+            font-size: 0.8rem;
+            line-height: 1.4;
+            overflow-x: auto;
+        }
+
+        .arch-diagram pre {
+            color: var(--mist);
+            white-space: pre;
+            text-align: left;
+            display: inline-block;
+        }
+
+        .arch-highlight { color: var(--ether); }
+        .arch-agent { color: var(--ember); }
+        .arch-gateway { color: var(--sigil); }
+
+        /* Install */
+        .install {
+            padding: 8rem 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .install-options {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 3rem;
+        }
+
+        .install-option {
+            background: var(--obsidian);
+            border: 1px solid var(--ash);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .install-option:hover {
+            border-color: var(--sigil);
+        }
+
+        .install-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--mist);
+        }
+
+        .install-command {
+            color: var(--ether);
+            font-size: 0.95rem;
+        }
+
+        .copy-btn {
+            background: var(--ash);
+            border: none;
+            color: var(--mist);
+            padding: 0.5rem 1rem;
+            font-family: inherit;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: var(--sigil);
+            color: white;
+        }
+
+        /* Footer */
+        footer {
+            padding: 4rem 2rem;
+            text-align: center;
+            border-top: 1px solid var(--ash);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: var(--mist);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--ether);
+        }
+
+        .footer-copy {
+            font-size: 0.75rem;
+            color: var(--ash);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            nav {
+                padding: 1rem 1.5rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero {
+                padding: 8rem 1.5rem 4rem;
+            }
+
+            .terminal-body {
+                font-size: 0.75rem;
+            }
+
+            .install-option {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="void-bg"></div>
+    <div class="grain"></div>
+
+    <nav>
+        <a href="#" class="logo">coven</a>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#install">Install</a></li>
+            <li><a href="https://github.com/2389-research/coven">GitHub</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <div class="sigil">
+                <div class="sigil-glow"></div>
+                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" stroke="url(#grad)" stroke-width="1.5" fill="none"/>
+                    <polygon points="50,20 80,35 80,65 50,80 20,65 20,35" stroke="url(#grad)" stroke-width="1" fill="none" opacity="0.6"/>
+                    <circle cx="50" cy="50" r="12" stroke="url(#grad)" stroke-width="1" fill="none"/>
+                    <circle cx="50" cy="50" r="3" fill="url(#grad)"/>
+                    <defs>
+                        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#7c3aed"/>
+                            <stop offset="100%" style="stop-color:#f472b6"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <h1>coven</h1>
+            <p class="tagline">Summon AI agents. Orchestrate with precision. A unified platform for running, connecting, and managing AI agents—locally or in the cloud.</p>
+            <div class="cta-group">
+                <a href="#install" class="btn btn-primary">Get Started</a>
+                <a href="https://github.com/2389-research/coven" class="btn btn-ghost">View Source</a>
+            </div>
+        </section>
+
+        <section class="terminal-section">
+            <div class="terminal">
+                <div class="terminal-header">
+                    <div class="terminal-dot"></div>
+                    <div class="terminal-dot"></div>
+                    <div class="terminal-dot"></div>
+                    <span class="terminal-title">~/.local/bin/coven</span>
+                </div>
+                <div class="terminal-body">
+                    <div class="terminal-line"><span class="comment"># Start a local gateway</span></div>
+                    <div class="terminal-line"><span class="prompt">$</span> <span class="command">coven serve</span></div>
+                    <div class="terminal-line"><span class="success">✓</span> Gateway running on <span class="highlight">localhost:7890</span></div>
+                    <div class="terminal-line"><span class="comment"># Connect an agent</span></div>
+                    <div class="terminal-line"><span class="prompt">$</span> <span class="command">coven agent run --name oracle</span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="features" id="features">
+            <div class="section-label">Capabilities</div>
+            <h2 class="section-title">Everything you need to orchestrate AI agents</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <span class="feature-icon">⬡</span>
+                    <h3>Local Gateway</h3>
+                    <p>Run a super-trusted local gateway for development. No cloud required. Full control over your agents.</p>
+                    <code>coven serve</code>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">⌘</span>
+                    <h3>Unified CLI</h3>
+                    <p>One command-line interface to manage agents, gateways, packs, and swarms. Scriptable and composable.</p>
+                    <code>coven --help</code>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">◈</span>
+                    <h3>Terminal UI</h3>
+                    <p>Interactive TUI for real-time agent conversations. Stream responses, approve tools, manage sessions.</p>
+                    <code>coven chat</code>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">⎔</span>
+                    <h3>Swarm Orchestration</h3>
+                    <p>Coordinate multiple agents across workspaces. Supervisor mode, parallel execution, shared context.</p>
+                    <code>coven swarm</code>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">⊞</span>
+                    <h3>Tool Packs</h3>
+                    <p>Extend agent capabilities with modular tool packs. MCP bridge, productivity tools, custom integrations.</p>
+                    <code>coven pack run</code>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">⟁</span>
+                    <h3>Multi-Frontend</h3>
+                    <p>Connect via CLI, TUI, Matrix, Slack, or Telegram. Same agents, any interface you prefer.</p>
+                    <code>coven link</code>
+                </div>
+            </div>
+        </section>
+
+        <section class="architecture" id="architecture">
+            <div class="section-label">System Design</div>
+            <h2 class="section-title">Built for flexibility</h2>
+            <div class="arch-diagram">
+<pre>
+                    ┌─────────────────────────────────────────────┐
+                    │              <span class="arch-highlight">Frontends</span>                       │
+                    │   TUI  ·  Matrix  ·  Slack  ·  Telegram    │
+                    └─────────────────────┬───────────────────────┘
+                                          │ gRPC
+                    ┌─────────────────────▼───────────────────────┐
+                    │           <span class="arch-gateway">coven-gateway</span>                     │
+                    │   Message routing · Auth · Persistence      │
+                    └─────────────────────┬───────────────────────┘
+                                          │ gRPC streams
+           ┌──────────────────────────────┼──────────────────────────────┐
+           │                              │                              │
+┌──────────▼──────────┐      ┌────────────▼────────────┐      ┌──────────▼──────────┐
+│   <span class="arch-agent">coven-agent</span>        │      │   <span class="arch-agent">coven-agent</span>            │      │   <span class="arch-agent">coven-agent</span>        │
+│   workspace: ~/dev  │      │   workspace: ~/docs      │      │   workspace: ~/api  │
+│   backend: claude   │      │   backend: mux           │      │   backend: claude   │
+└─────────────────────┘      └──────────────────────────┘      └─────────────────────┘
+</pre>
+            </div>
+        </section>
+
+        <section class="install" id="install">
+            <div class="section-label">Installation</div>
+            <h2 class="section-title">Begin the ritual</h2>
+            <div class="install-options">
+                <div class="install-option">
+                    <div>
+                        <div class="install-label">Homebrew</div>
+                        <div class="install-command">brew install 2389-research/tap/coven</div>
+                    </div>
+                    <button class="copy-btn" onclick="copy('brew install 2389-research/tap/coven')">Copy</button>
+                </div>
+                <div class="install-option">
+                    <div>
+                        <div class="install-label">Cargo</div>
+                        <div class="install-command">cargo install coven-cli</div>
+                    </div>
+                    <button class="copy-btn" onclick="copy('cargo install coven-cli')">Copy</button>
+                </div>
+                <div class="install-option">
+                    <div>
+                        <div class="install-label">From Source</div>
+                        <div class="install-command">git clone https://github.com/2389-research/coven && cd coven && cargo build --release</div>
+                    </div>
+                    <button class="copy-btn" onclick="copy('git clone https://github.com/2389-research/coven && cd coven && cargo build --release')">Copy</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-links">
+            <a href="https://github.com/2389-research/coven">GitHub</a>
+            <a href="architecture.html">Architecture</a>
+            <a href="cli.html">CLI Reference</a>
+            <a href="agent.html">Agent Guide</a>
+            <a href="swarm.html">Swarm</a>
+            <a href="packs.html">Tool Packs</a>
+        </div>
+        <p class="footer-copy">coven · 2389 Research · MIT License</p>
+    </footer>
+
+    <script>
+        function copy(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event.target;
+                const original = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = original, 1500);
+            });
+        }
+
+        // Intersection observer for scroll animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.feature-card').forEach((card, i) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            card.style.transition = `all 0.6s ease ${i * 0.1}s`;
+            observer.observe(card);
+        });
+    </script>
+</body>
+</html>

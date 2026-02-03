@@ -1,0 +1,42 @@
+# ABOUTME: Dockerfile for coven Slack bridge
+# ABOUTME: Connects Slack workspaces to coven-gateway agents via Socket Mode
+
+FROM rustlang/rust:nightly-bookworm AS builder
+
+WORKDIR /app
+
+# Install protobuf compiler with well-known types
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler \
+    libprotobuf-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY proto ./proto
+
+# Build release binary
+RUN cargo build --release -p coven-slack-rs
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /app/target/release/coven-slack-bridge /usr/local/bin/coven-slack-bridge
+
+# Create config directory
+RUN mkdir -p /root/.config/coven
+
+ENV RUST_LOG=coven_slack_rs=info
+ENV COVEN_SLACK_CONFIG=/root/.config/coven/slack-bridge.toml
+
+CMD ["coven-slack-bridge"]

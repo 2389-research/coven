@@ -1,0 +1,114 @@
+# ABOUTME: Docker Compose for coven advanced deployment
+# ABOUTME: Includes swarm, matrix bridge, slack bridge, and telegram bridge
+
+services:
+  # Swarm supervisor - orchestrates multiple agent workspaces
+  swarm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.swarm
+    container_name: coven-swarm
+    environment:
+      - COVEN_GATEWAY_URL=http://gateway:6666
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - RUST_LOG=${RUST_LOG:-coven_swarm=info}
+    volumes:
+      - ./config/swarm.toml:/root/.config/coven/swarm.toml:ro
+      - swarm-workspaces:/workspaces
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - coven
+    restart: unless-stopped
+
+  # Matrix bridge - connects Matrix rooms to coven
+  matrix-bridge:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.matrix-bridge
+    container_name: coven-matrix-bridge
+    environment:
+      - MATRIX_PASSWORD=${MATRIX_PASSWORD}
+      - MATRIX_RECOVERY_KEY=${MATRIX_RECOVERY_KEY:-}
+      - COVEN_TOKEN=${COVEN_TOKEN}
+      - RUST_LOG=${RUST_LOG:-coven_matrix_rs=info}
+    volumes:
+      - ./config/matrix-bridge.toml:/root/.config/coven/matrix-bridge.toml:ro
+      - matrix-state:/app/state
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - coven
+    restart: unless-stopped
+
+  # Slack bridge - connects Slack workspaces to coven via Socket Mode
+  slack-bridge:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.slack-bridge
+    container_name: coven-slack-bridge
+    environment:
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - COVEN_TOKEN=${COVEN_TOKEN}
+      - RUST_LOG=${RUST_LOG:-coven_slack_rs=info}
+    volumes:
+      - ./config/slack-bridge.toml:/root/.config/coven/slack-bridge.toml:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - coven
+    restart: unless-stopped
+
+  # Telegram bridge - connects Telegram chats to coven via long polling
+  telegram-bridge:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.telegram-bridge
+    container_name: coven-telegram-bridge
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - COVEN_TOKEN=${COVEN_TOKEN}
+      - RUST_LOG=${RUST_LOG:-coven_telegram_rs=info}
+    volumes:
+      - ./config/telegram-bridge.toml:/root/.config/coven/telegram-bridge.toml:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - coven
+    restart: unless-stopped
+
+  # Gateway placeholder - expects external gateway or uses profile override
+  # Override with your gateway service or use the gateway profile below
+  gateway:
+    image: ghcr.io/2389-research/coven-gateway:latest
+    container_name: coven-gateway
+    environment:
+      - COVEN_CONFIG=/app/config.yaml
+    volumes:
+      - ./config/gateway.yaml:/app/config.yaml:ro
+      - gateway-data:/app/data
+    ports:
+      - "6666:6666"   # gRPC (the mark of the beast)
+      - "8080:8080"   # HTTP/health
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - coven
+    restart: unless-stopped
+
+networks:
+  coven:
+    driver: bridge
+
+volumes:
+  gateway-data:
+  swarm-workspaces:
+  matrix-state:

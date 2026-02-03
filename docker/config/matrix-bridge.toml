@@ -1,0 +1,36 @@
+# ABOUTME: Matrix bridge config for Docker deployment
+# ABOUTME: Environment variables are expanded with ${VAR_NAME} syntax
+
+[matrix]
+# Matrix homeserver URL
+homeserver = "https://matrix.org"
+
+# Bot account credentials
+username = "@your-bot:matrix.org"
+password = "${MATRIX_PASSWORD}"
+
+# Optional: E2EE recovery key for encrypted rooms
+# recovery_key = "${MATRIX_RECOVERY_KEY}"
+
+# State directory (inside container)
+state_dir = "/app/state"
+
+[gateway]
+# Gateway hostname (Docker service name)
+host = "gateway"
+port = 6666
+tls = false
+token = "${COVEN_TOKEN}"
+
+[bridge]
+# Restrict to specific rooms (empty = allow all)
+allowed_rooms = []
+
+# Restrict to specific Matrix users (empty = allow all)
+allowed_senders = []
+
+# Only respond to messages with this prefix (optional)
+# command_prefix = "!coven "
+
+# Show typing indicator while agent responds
+typing_indicator = true

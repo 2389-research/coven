@@ -1,0 +1,20 @@
+---
+source: crates/coven-tui/src/theme/mod.rs
+expression: theme_to_snapshot(&MIDNIGHT_THEME)
+---
+Theme: midnight
+  background: rgb(12, 14, 28)
+  surface: rgb(20, 24, 45)
+  surface_dim: rgb(16, 18, 36)
+  text: rgb(200, 210, 235)
+  text_muted: rgb(100, 115, 150)
+  text_inverse: rgb(12, 14, 28)
+  primary: rgb(80, 140, 240)
+  accent: rgb(100, 160, 255)
+  success: rgb(80, 200, 160)
+  warning: rgb(240, 180, 100)
+  error: rgb(240, 90, 110)
+  user_message: rgb(90, 160, 240)
+  agent_message: rgb(130, 170, 255)
+  thinking: rgb(200, 160, 100)
+  tool_use: rgb(100, 180, 200)

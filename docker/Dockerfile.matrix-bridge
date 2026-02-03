@@ -1,0 +1,42 @@
+# ABOUTME: Dockerfile for coven Matrix bridge
+# ABOUTME: Connects Matrix rooms to coven-gateway agents
+
+FROM rustlang/rust:nightly-bookworm AS builder
+
+WORKDIR /app
+
+# Install protobuf compiler with well-known types
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler \
+    libprotobuf-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY proto ./proto
+
+# Build release binary
+RUN cargo build --release -p coven-matrix-rs
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /app/target/release/coven-matrix-bridge /usr/local/bin/coven-matrix-bridge
+
+# Create directories for config and Matrix state/crypto storage
+RUN mkdir -p /root/.config/coven /app/state
+
+ENV RUST_LOG=coven_matrix_rs=info
+ENV COVEN_MATRIX_CONFIG=/root/.config/coven/matrix-bridge.toml
+
+CMD ["coven-matrix-bridge"]

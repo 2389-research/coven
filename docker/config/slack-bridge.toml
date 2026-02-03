@@ -1,0 +1,28 @@
+# ABOUTME: Slack bridge config for Docker deployment
+# ABOUTME: Environment variables are expanded with ${VAR_NAME} syntax
+
+[slack]
+# App-level token for Socket Mode WebSocket
+app_token = "${SLACK_APP_TOKEN}"
+
+# Bot token for posting messages
+bot_token = "${SLACK_BOT_TOKEN}"
+
+[gateway]
+# Gateway URL (Docker service name)
+url = "http://gateway:6666"
+token = "${COVEN_TOKEN}"
+
+[bridge]
+# Restrict to specific channels (empty = allow all)
+# Use channel IDs (C...), not names
+allowed_channels = []
+
+# Response mode: "mention" or "all"
+response_mode = "mention"
+
+# Post responses in threads
+thread_replies = true
+
+# Typing indicator placeholder (not yet implemented)
+typing_indicator = true

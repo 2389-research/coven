@@ -249,12 +249,6 @@ impl App {
         }
     }
 
-    /// Load conversation history for an agent into the chat widget
-    fn load_conversation(&mut self, agent_id: &str) {
-        let messages = self.app_state.get_messages(agent_id);
-        self.chat.set_messages(messages);
-    }
-
     /// Get the number of queued messages for the current agent
     fn current_queue_count(&self) -> usize {
         self.current_agent_id
@@ -373,8 +367,36 @@ impl App {
                 // If we have a last_agent_id from state, verify it exists and load conversation
                 if let Some(agent_id) = self.current_agent_id.clone() {
                     if self.agents.iter().any(|a| a.id == agent_id) {
-                        // Agent exists, load its conversation
-                        self.load_conversation(&agent_id);
+                        // Agent exists, fetch history from gateway then load conversation
+                        let client = self.client.clone();
+                        let tx = self.event_tx.clone();
+                        let agent_id_clone = agent_id.clone();
+                        tokio::spawn(async move {
+                            tracing::info!(
+                                "Fetching history from gateway for agent {}",
+                                agent_id_clone
+                            );
+                            match client.load_history_async(agent_id_clone.clone()).await {
+                                Ok(messages) => {
+                                    tracing::info!(
+                                        "Loaded {} messages from gateway for {}",
+                                        messages.len(),
+                                        agent_id_clone
+                                    );
+                                    // MessagesChanged will be triggered by the client callback
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to load history from gateway: {}, falling back to local",
+                                        e
+                                    );
+                                    // Trigger a messages changed event to load from local cache
+                                    let _ = tx.send(AppEvent::MessagesChanged {
+                                        agent_id: agent_id_clone,
+                                    });
+                                }
+                            }
+                        });
                     } else {
                         // Agent no longer exists, clear the selection
                         tracing::info!(
@@ -397,11 +419,37 @@ impl App {
                 self.unread_counts.remove(&agent_id);
                 self.picker.set_unread_counts(&self.unread_counts);
 
-                // Load conversation history for the selected agent
-                self.load_conversation(&agent_id);
-
-                self.current_agent_id = Some(agent_id);
+                // Set current agent and switch focus immediately for responsiveness
+                self.current_agent_id = Some(agent_id.clone());
                 self.focus = Focus::Input;
+
+                // Fetch history from gateway (async), then update chat
+                let client = self.client.clone();
+                let tx = self.event_tx.clone();
+                let agent_id_clone = agent_id.clone();
+                tokio::spawn(async move {
+                    tracing::info!("Fetching history from gateway for agent {}", agent_id_clone);
+                    match client.load_history_async(agent_id_clone.clone()).await {
+                        Ok(messages) => {
+                            tracing::info!(
+                                "Loaded {} messages from gateway for {}",
+                                messages.len(),
+                                agent_id_clone
+                            );
+                            // MessagesChanged will be triggered by the client callback
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to load history from gateway: {}, falling back to local",
+                                e
+                            );
+                            // Trigger a messages changed event to load from local cache
+                            let _ = tx.send(AppEvent::MessagesChanged {
+                                agent_id: agent_id_clone,
+                            });
+                        }
+                    }
+                });
             }
             AppEvent::OpenPicker => {
                 self.focus = Focus::Picker;

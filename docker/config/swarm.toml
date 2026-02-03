@@ -1,0 +1,13 @@
+# ABOUTME: Swarm supervisor config for Docker deployment
+# ABOUTME: Manages multiple agent workspaces
+
+[supervisor]
+# Workspaces directory (inside container)
+workspaces_dir = "/workspaces"
+
+# Gateway connection
+gateway_url = "http://gateway:6666"
+
+[agent]
+# Default agent settings
+backend = "mux"
