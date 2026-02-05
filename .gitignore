@@ -25,5 +25,8 @@ Thumbs.db
 *.generated.*
 .scratch/
 
+# Worktrees
+.worktrees/
+
 # XCFramework binaries (download from GitHub releases)
 CovenClientFFI.xcframework/
