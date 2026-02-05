@@ -1,0 +1,33 @@
+# ABOUTME: Terminal user interface for human agents in coven
+# ABOUTME: Allows humans to act as agents responding to messages through a TUI
+
+[package]
+name = "coven-human"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Human agent TUI for Coven - Humans as agents in the swarm"
+
+[lib]
+name = "coven_human"
+path = "src/lib.rs"
+
+[dependencies]
+# Internal crates
+coven-client.workspace = true
+coven-grpc.workspace = true
+coven-ssh.workspace = true
+
+# TUI
+ratatui.workspace = true
+crossterm.workspace = true
+
+# Async
+tokio.workspace = true
+
+# Error handling
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
