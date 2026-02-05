@@ -31,3 +31,6 @@ anyhow.workspace = true
 
 # Logging
 tracing.workspace = true
+
+# Time
+chrono.workspace = true
