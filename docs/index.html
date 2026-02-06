@@ -656,21 +656,21 @@
                         <div class="install-label">Homebrew</div>
                         <div class="install-command">brew install 2389-research/tap/coven</div>
                     </div>
-                    <button class="copy-btn" onclick="copy('brew install 2389-research/tap/coven')">Copy</button>
+                    <button class="copy-btn" onclick="copy('brew install 2389-research/tap/coven', this)">Copy</button>
                 </div>
                 <div class="install-option">
                     <div>
                         <div class="install-label">Cargo</div>
                         <div class="install-command">cargo install coven-cli</div>
                     </div>
-                    <button class="copy-btn" onclick="copy('cargo install coven-cli')">Copy</button>
+                    <button class="copy-btn" onclick="copy('cargo install coven-cli', this)">Copy</button>
                 </div>
                 <div class="install-option">
                     <div>
                         <div class="install-label">From Source</div>
                         <div class="install-command">git clone https://github.com/2389-research/coven && cd coven && cargo build --release</div>
                     </div>
-                    <button class="copy-btn" onclick="copy('git clone https://github.com/2389-research/coven && cd coven && cargo build --release')">Copy</button>
+                    <button class="copy-btn" onclick="copy('git clone https://github.com/2389-research/coven && cd coven && cargo build --release', this)">Copy</button>
                 </div>
             </div>
         </section>
@@ -689,9 +689,8 @@
     </footer>
 
     <script>
-        function copy(text) {
+        function copy(text, btn) {
             navigator.clipboard.writeText(text).then(() => {
-                const btn = event.target;
                 const original = btn.textContent;
                 btn.textContent = 'Copied!';
                 setTimeout(() => btn.textContent = original, 1500);

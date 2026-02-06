@@ -62,6 +62,7 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
             let binding = RoomBinding {
                 room_id: ctx.room_id.clone(),
                 conversation_key: agent_id.clone(),
+                owner: None,
             };
             ctx.bindings
                 .write()

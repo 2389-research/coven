@@ -29,6 +29,7 @@ pub struct MatrixConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GatewayConfig {
     /// Gateway hostname (e.g., "localhost" or "coven.example.com")
+    #[serde(default)]
     pub host: String,
     /// Gateway gRPC port (default: 6666)
     #[serde(default = "default_gateway_port")]
@@ -39,6 +40,10 @@ pub struct GatewayConfig {
     /// Authentication token
     #[serde(default)]
     pub token: Option<String>,
+    /// Legacy field: full gateway URL (e.g., "http://localhost:6666").
+    /// If set, host/port/tls are derived from it. Prefer using host/port/tls directly.
+    #[serde(default)]
+    url: Option<String>,
 }
 
 fn default_gateway_port() -> u16 {
@@ -46,6 +51,37 @@ fn default_gateway_port() -> u16 {
 }
 
 impl GatewayConfig {
+    /// Resolve the effective host/port/tls from either the legacy `url` field
+    /// or the explicit host/port/tls fields. Call this after deserialization.
+    pub fn resolve_legacy_url(&mut self) {
+        if let Some(ref url) = self.url {
+            if self.host.is_empty() {
+                warn!("Using legacy gateway.url field; prefer gateway.host/port/tls");
+                // Parse scheme
+                let (scheme, rest) = if let Some(rest) = url.strip_prefix("https://") {
+                    ("https", rest)
+                } else if let Some(rest) = url.strip_prefix("http://") {
+                    ("http", rest)
+                } else {
+                    ("http", url.as_str())
+                };
+                self.tls = scheme == "https";
+
+                // Parse host:port
+                let rest = rest.trim_end_matches('/');
+                if let Some((host, port_str)) = rest.rsplit_once(':') {
+                    self.host = host.to_string();
+                    self.port = port_str
+                        .parse()
+                        .unwrap_or(if self.tls { 443 } else { 6666 });
+                } else {
+                    self.host = rest.to_string();
+                    // Keep default port
+                }
+            }
+        }
+    }
+
     /// Construct the gRPC endpoint URI from host/port/tls settings.
     pub fn endpoint_uri(&self) -> String {
         let scheme = if self.tls { "https" } else { "http" };
@@ -102,9 +138,10 @@ impl Config {
             }
         });
 
-        let config: Config = toml::from_str(&contents)
+        let mut config: Config = toml::from_str(&contents)
             .map_err(|e| BridgeError::Config(format!("Failed to parse config: {}", e)))?;
 
+        config.gateway.resolve_legacy_url();
         config.validate()?;
         Ok(config)
     }

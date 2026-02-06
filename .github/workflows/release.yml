@@ -27,7 +27,9 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             cross: false
-          # ARM Linux disabled for now - OpenSSL cross-compile issues
+          # TODO: Re-enable ARM Linux builds once OpenSSL cross-compile is resolved.
+          # Tracking: aarch64 Linux users cannot install via release artifacts or Homebrew.
+          # See also: homebrew job below (ARM Linux stanza omitted).
           # - target: aarch64-unknown-linux-gnu
           #   os: ubuntu-latest
           #   cross: true
@@ -299,7 +301,10 @@ jobs:
                 url "https://github.com/2389-research/coven/releases/download/${REF_NAME}/coven-${REF_NAME}-x86_64-unknown-linux-gnu.tar.gz"
                 sha256 "${SHA_X86_LINUX}"
               end
-              # ARM Linux not available yet
+              # TODO: ARM Linux not available yet (OpenSSL cross-compile issues).
+              on_arm do
+                odie "coven does not yet provide ARM Linux binaries. Build from source with: cargo install coven-cli"
+              end
             end
 
             def install

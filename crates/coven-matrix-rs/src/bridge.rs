@@ -24,6 +24,8 @@ use uuid::Uuid;
 pub struct RoomBinding {
     pub room_id: OwnedRoomId,
     pub conversation_key: String,
+    /// The Matrix user who created this binding (used to scope visibility).
+    pub owner: Option<String>,
 }
 
 /// The Bridge ties together Matrix and Gateway clients to route messages.
@@ -60,10 +62,16 @@ impl Bridge {
     }
 
     /// Bind a Matrix room to a gateway conversation.
-    pub async fn bind_room(&self, room_id: OwnedRoomId, conversation_key: String) {
+    pub async fn bind_room(
+        &self,
+        room_id: OwnedRoomId,
+        conversation_key: String,
+        owner: Option<String>,
+    ) {
         let binding = RoomBinding {
             room_id: room_id.clone(),
             conversation_key,
+            owner,
         };
 
         info!(
@@ -124,8 +132,18 @@ impl Bridge {
                         return;
                     }
 
-                    // Check if room is allowed
-                    if !config.is_room_allowed(room_id.as_str()) {
+                    // Extract text content
+                    let Some(text) = extract_text_content(&event) else {
+                        debug!(room_id = %room_id, "Non-text message, ignoring");
+                        return;
+                    };
+
+                    // Parse commands before allowlist check so DM-based
+                    // bind/rooms commands work even when allowed_rooms is set.
+                    let is_command = Command::parse(&text).is_some();
+
+                    // Check if room is allowed (bypass for !coven commands)
+                    if !is_command && !config.is_room_allowed(room_id.as_str()) {
                         debug!(room_id = %room_id, "Message from non-allowed room, ignoring");
                         return;
                     }
@@ -135,12 +153,6 @@ impl Bridge {
                         debug!(sender = %event.sender, "Message from non-allowed sender, ignoring");
                         return;
                     }
-
-                    // Extract text content
-                    let Some(text) = extract_text_content(&event) else {
-                        debug!(room_id = %room_id, "Non-text message, ignoring");
-                        return;
-                    };
 
                     // Check for !coven commands FIRST, before binding check
                     // Commands work regardless of room binding status
@@ -204,6 +216,7 @@ impl Bridge {
                                         let binding = crate::bridge::RoomBinding {
                                             room_id: new_room_id.clone(),
                                             conversation_key: agent_id.clone(),
+                                            owner: Some(event.sender.to_string()),
                                         };
                                         bindings.write().await.insert(new_room_id.clone(), binding);
 
@@ -245,15 +258,19 @@ impl Bridge {
                                 return;
                             }
 
-                            // Handle !coven rooms in DM - list user's bound rooms
+                            // Handle !coven rooms in DM - list only this user's bound rooms
                             if let Command::Rooms = &command {
                                 let bindings_read = bindings.read().await;
-                                if bindings_read.is_empty() {
+                                let sender_str = event.sender.to_string();
+                                let user_bindings: Vec<_> = bindings_read.values()
+                                    .filter(|b| b.owner.as_deref() == Some(sender_str.as_str()))
+                                    .collect();
+                                if user_bindings.is_empty() {
                                     let response = "You have no bound rooms.\n\nUse `!coven bind <agent-id>` to create one.";
                                     let _ = room.send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(response)).await;
                                 } else {
                                     let mut response = String::from("📋 Your bound rooms:\n\n");
-                                    for binding in bindings_read.values() {
+                                    for binding in &user_bindings {
                                         response.push_str(&format!("• `{}` → {}\n", binding.conversation_key, binding.room_id));
                                     }
                                     let _ = room.send(matrix_sdk::ruma::events::room::message::RoomMessageEventContent::text_plain(&response)).await;
@@ -315,8 +332,12 @@ impl Bridge {
                         room_id = %room_id,
                         sender = %event.sender,
                         conversation_key = %binding.conversation_key,
-                        message_preview = %text.chars().take(50).collect::<String>(),
                         "Forwarding message to gateway"
+                    );
+                    debug!(
+                        room_id = %room_id,
+                        message_preview = %text.chars().take(50).collect::<String>(),
+                        "Message content preview"
                     );
 
                     // Process the message
@@ -571,10 +592,12 @@ mod tests {
         let binding = RoomBinding {
             room_id: OwnedRoomId::try_from("!test:example.org").unwrap(),
             conversation_key: "test-conversation".to_string(),
+            owner: Some("@user:example.org".to_string()),
         };
 
         let cloned = binding.clone();
         assert_eq!(binding.room_id, cloned.room_id);
         assert_eq!(binding.conversation_key, cloned.conversation_key);
+        assert_eq!(binding.owner, cloned.owner);
     }
 }
