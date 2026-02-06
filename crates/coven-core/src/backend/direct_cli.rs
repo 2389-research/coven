@@ -295,8 +295,9 @@ async fn process_cli_output(child: &mut Child, event_tx: mpsc::Sender<BackendEve
             }
             Err(e) => {
                 // Log parse failures to help debug unexpected CLI output
-                let display_line = if line.len() > 200 {
-                    format!("{}...[truncated {} chars]", &line[..200], line.len() - 200)
+                let display_line = if line.chars().count() > 200 {
+                    let truncated: String = line.chars().take(200).collect();
+                    format!("{}...[truncated]", truncated)
                 } else {
                     line.clone()
                 };
@@ -365,6 +366,30 @@ fn parse_cli_event(json: &Value, accumulated_text: &mut String) -> Option<Vec<Ba
                         session_id: session_id.to_string(),
                     }]);
                 }
+            } else if subtype == Some("compact_boundary") {
+                // Claude CLI emits compact_boundary when conversation history is
+                // compressed due to context window limits. Log this for operational
+                // visibility in long-running agent sessions.
+                let metadata = json.get("compact_metadata");
+                let trigger = metadata
+                    .and_then(|m| m.get("trigger"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("unknown");
+                let pre_tokens = metadata
+                    .and_then(|m| m.get("pre_tokens"))
+                    .and_then(|t| t.as_u64());
+                if let Some(tokens) = pre_tokens {
+                    tracing::info!(
+                        trigger = %trigger,
+                        pre_tokens = tokens,
+                        "Conversation history compacted"
+                    );
+                } else {
+                    tracing::info!(
+                        trigger = %trigger,
+                        "Conversation history compacted"
+                    );
+                }
             }
             None
         }
@@ -394,6 +419,10 @@ fn parse_cli_event(json: &Value, accumulated_text: &mut String) -> Option<Vec<Ba
 
                         tracing::debug!(tool = %name, id = %id, "Tool use detected");
                         events.push(BackendEvent::ToolUse { id, name, input });
+                    } else if item_type == Some("thinking") {
+                        // Extended thinking block - emit Thinking event but don't
+                        // stream the content (it's internal model reasoning)
+                        events.push(BackendEvent::Thinking);
                     } else if item_type == Some("text") {
                         if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
                             if !text.is_empty() {
@@ -431,11 +460,31 @@ fn parse_cli_event(json: &Value, accumulated_text: &mut String) -> Option<Vec<Ba
                 .unwrap_or(false);
 
             if is_error {
-                let message = json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("Unknown error")
-                    .to_string();
+                // Extract error message: prefer "errors" (array) from Claude CLI,
+                // fall back to "error" (string) for backwards compatibility
+                let error_detail =
+                    if let Some(errors_array) = json.get("errors").and_then(|v| v.as_array()) {
+                        let messages: Vec<String> = errors_array
+                            .iter()
+                            .filter_map(|e| e.as_str().map(|s| s.to_string()))
+                            .collect();
+                        if messages.is_empty() {
+                            "Unknown error".to_string()
+                        } else {
+                            messages.join("; ")
+                        }
+                    } else if let Some(error_str) = json.get("error").and_then(|v| v.as_str()) {
+                        error_str.to_string()
+                    } else {
+                        "Unknown error".to_string()
+                    };
+
+                // Include the error subtype for context (e.g., "error_max_turns")
+                let message = if let Some(subtype) = json.get("subtype").and_then(|v| v.as_str()) {
+                    format!("{}: {}", subtype, error_detail)
+                } else {
+                    error_detail
+                };
 
                 Some(vec![BackendEvent::Error(message)])
             } else {
@@ -460,13 +509,18 @@ fn parse_cli_event(json: &Value, accumulated_text: &mut String) -> Option<Vec<Ba
                         .and_then(|v| v.as_i64())
                         .unwrap_or(0) as i32;
 
+                    let thinking_tokens = usage
+                        .get("thinking_tokens")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0) as i32;
+
                     if input_tokens > 0 || output_tokens > 0 {
                         events.push(BackendEvent::Usage {
                             input_tokens,
                             output_tokens,
                             cache_read_tokens,
                             cache_write_tokens,
-                            thinking_tokens: 0, // CLI doesn't expose this
+                            thinking_tokens,
                         });
                     }
                 }
@@ -528,6 +582,349 @@ fn parse_cli_event(json: &Value, accumulated_text: &mut String) -> Option<Vec<Ba
             }
             None
         }
-        _ => None,
+        unknown => {
+            let json_preview: String = {
+                let full = json.to_string();
+                if full.chars().count() > 200 {
+                    let truncated: String = full.chars().take(200).collect();
+                    format!("{}...[truncated]", truncated)
+                } else {
+                    full
+                }
+            };
+            tracing::debug!(
+                event_type = %unknown,
+                json_preview = %json_preview,
+                "Unhandled CLI event type"
+            );
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ── 1. Error result with "errors" array ──────────────────────────────
+
+    #[test]
+    fn error_result_with_single_errors_array_entry() {
+        let json = json!({
+            "type": "result",
+            "subtype": "error_max_turns",
+            "is_error": true,
+            "errors": ["Maximum turns reached"]
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::Error(msg) => {
+                assert_eq!(msg, "error_max_turns: Maximum turns reached");
+            }
+            other => panic!("expected BackendEvent::Error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn error_result_with_multiple_errors_array_entries() {
+        let json = json!({
+            "type": "result",
+            "subtype": "error_max_budget_usd",
+            "is_error": true,
+            "errors": ["Budget exceeded", "Spending limit hit"]
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::Error(msg) => {
+                assert_eq!(
+                    msg,
+                    "error_max_budget_usd: Budget exceeded; Spending limit hit"
+                );
+            }
+            other => panic!("expected BackendEvent::Error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn error_result_fallback_to_error_string_field() {
+        let json = json!({
+            "type": "result",
+            "is_error": true,
+            "error": "Something broke"
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::Error(msg) => {
+                assert_eq!(msg, "Something broke");
+            }
+            other => panic!("expected BackendEvent::Error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn error_result_fallback_to_unknown_error() {
+        let json = json!({
+            "type": "result",
+            "is_error": true
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::Error(msg) => {
+                assert_eq!(msg, "Unknown error");
+            }
+            other => panic!("expected BackendEvent::Error, got {:?}", other),
+        }
+    }
+
+    // ── 2. Thinking content blocks in assistant messages ─────────────────
+
+    #[test]
+    fn assistant_message_with_thinking_and_text() {
+        let json = json!({
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "thinking", "thinking": "Let me analyze..."},
+                    {"type": "text", "text": "Here is my answer"}
+                ]
+            }
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 2);
+        assert!(
+            matches!(&events[0], BackendEvent::Thinking),
+            "first event should be Thinking, got {:?}",
+            events[0]
+        );
+        match &events[1] {
+            BackendEvent::Text(text) => {
+                assert_eq!(text, "Here is my answer");
+            }
+            other => panic!("expected BackendEvent::Text, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn assistant_message_with_only_thinking_block() {
+        let json = json!({
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "thinking", "thinking": "Internal reasoning only"}
+                ]
+            }
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        assert!(matches!(&events[0], BackendEvent::Thinking));
+    }
+
+    // ── 3. Thinking tokens in usage ──────────────────────────────────────
+
+    #[test]
+    fn result_with_usage_including_thinking_tokens() {
+        let json = json!({
+            "type": "result",
+            "is_error": false,
+            "usage": {
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "cache_read_input_tokens": 10,
+                "cache_creation_input_tokens": 5,
+                "thinking_tokens": 200
+            }
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+
+        // Should contain Usage event and Done event
+        let usage_event = events
+            .iter()
+            .find(|e| matches!(e, BackendEvent::Usage { .. }))
+            .expect("should contain a Usage event");
+        match usage_event {
+            BackendEvent::Usage {
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                cache_write_tokens,
+                thinking_tokens,
+            } => {
+                assert_eq!(*input_tokens, 100);
+                assert_eq!(*output_tokens, 50);
+                assert_eq!(*cache_read_tokens, 10);
+                assert_eq!(*cache_write_tokens, 5);
+                assert_eq!(*thinking_tokens, 200);
+            }
+            _ => unreachable!(),
+        }
+
+        // Should also contain Done event
+        let done_event = events
+            .iter()
+            .find(|e| matches!(e, BackendEvent::Done { .. }))
+            .expect("should contain a Done event");
+        assert!(
+            matches!(done_event, BackendEvent::Done { full_response } if full_response.is_empty())
+        );
+    }
+
+    #[test]
+    fn result_with_usage_zero_thinking_tokens() {
+        let json = json!({
+            "type": "result",
+            "is_error": false,
+            "usage": {
+                "input_tokens": 50,
+                "output_tokens": 25,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0
+            }
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+
+        let usage_event = events
+            .iter()
+            .find(|e| matches!(e, BackendEvent::Usage { .. }))
+            .expect("should contain a Usage event");
+        match usage_event {
+            BackendEvent::Usage {
+                thinking_tokens, ..
+            } => {
+                assert_eq!(
+                    *thinking_tokens, 0,
+                    "missing thinking_tokens should default to 0"
+                );
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // ── 4. compact_boundary system event returns None ─────────────────────
+
+    #[test]
+    fn system_compact_boundary_returns_none() {
+        let json = json!({
+            "type": "system",
+            "subtype": "compact_boundary",
+            "compact_metadata": {
+                "trigger": "auto",
+                "pre_tokens": 12345
+            }
+        });
+        let mut acc = String::new();
+        let result = parse_cli_event(&json, &mut acc);
+        assert!(
+            result.is_none(),
+            "compact_boundary should return None, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn system_compact_boundary_without_pre_tokens_returns_none() {
+        let json = json!({
+            "type": "system",
+            "subtype": "compact_boundary",
+            "compact_metadata": {
+                "trigger": "manual"
+            }
+        });
+        let mut acc = String::new();
+        let result = parse_cli_event(&json, &mut acc);
+        assert!(result.is_none());
+    }
+
+    // ── 5. Unknown event type returns None ───────────────────────────────
+
+    #[test]
+    fn unknown_event_type_returns_none() {
+        let json = json!({
+            "type": "stream_event",
+            "event": {"type": "message_start"}
+        });
+        let mut acc = String::new();
+        let result = parse_cli_event(&json, &mut acc);
+        assert!(
+            result.is_none(),
+            "unknown event type should return None, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn completely_unknown_event_type_returns_none() {
+        let json = json!({
+            "type": "banana_event",
+            "data": 42
+        });
+        let mut acc = String::new();
+        let result = parse_cli_event(&json, &mut acc);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn event_with_no_type_field_returns_none() {
+        let json = json!({
+            "data": "something",
+            "value": 123
+        });
+        let mut acc = String::new();
+        let result = parse_cli_event(&json, &mut acc);
+        assert!(result.is_none());
+    }
+
+    // ── Bonus: accumulated text flows into result Done ───────────────────
+
+    #[test]
+    fn accumulated_text_appears_in_done_event() {
+        // Simulate an assistant message followed by a result
+        let assistant_json = json!({
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "text", "text": "Hello world"}
+                ]
+            }
+        });
+        let result_json = json!({
+            "type": "result",
+            "is_error": false
+        });
+        let mut acc = String::new();
+
+        // Process assistant message - accumulates text
+        let _events = parse_cli_event(&assistant_json, &mut acc);
+        assert_eq!(acc, "Hello world");
+
+        // Process result - drains accumulated text into Done
+        let events = parse_cli_event(&result_json, &mut acc).expect("should return events");
+        let done_event = events
+            .iter()
+            .find(|e| matches!(e, BackendEvent::Done { .. }))
+            .expect("should contain Done event");
+        match done_event {
+            BackendEvent::Done { full_response } => {
+                assert_eq!(full_response, "Hello world");
+            }
+            _ => unreachable!(),
+        }
+        // Accumulated text should be drained
+        assert!(
+            acc.is_empty(),
+            "accumulated text should be empty after result"
+        );
     }
 }
