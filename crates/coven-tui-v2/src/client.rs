@@ -13,7 +13,11 @@ use tokio::sync::mpsc;
 pub enum Response {
     Text(String),
     Thinking(String),
-    ToolStart(String),
+    ToolStart {
+        name: String,
+        input: String,
+    },
+    ToolResult(String),
     ToolComplete(String),
     ToolError(String, String),
     Usage {
@@ -51,16 +55,13 @@ impl StreamCallback for CallbackBridge {
         let response = match event {
             StreamEvent::Text { content } => Response::Text(content),
             StreamEvent::Thinking { content } => Response::Thinking(content),
-            StreamEvent::ToolUse { name, .. } => Response::ToolStart(name),
-            StreamEvent::ToolResult { .. } => return, // Handled by ToolState
-            StreamEvent::ToolState { state, detail: _ } => {
-                // Map state string to our enum
-                match state.as_str() {
-                    "completed" => return, // Will get tool name from ToolUse
-                    "failed" => return,
-                    _ => return,
-                }
-            }
+            StreamEvent::ToolUse { name, input } => Response::ToolStart { name, input },
+            StreamEvent::ToolResult { tool_id: _, result } => Response::ToolResult(result),
+            StreamEvent::ToolState { state, detail } => match state.as_str() {
+                "completed" => Response::ToolComplete(detail),
+                "failed" => Response::ToolError(detail.clone(), detail),
+                _ => return,
+            },
             StreamEvent::ToolApprovalRequest {
                 agent_id,
                 request_id,
@@ -172,6 +173,13 @@ impl Client {
         self.inner
             .send_message(agent_id.to_string(), content.to_string())
             .map_err(|e| anyhow!("Failed to send message: {}", e))
+    }
+
+    pub async fn load_history(&self, agent_id: &str) -> Result<Vec<coven_client::Message>> {
+        self.inner
+            .load_history_async(agent_id.to_string())
+            .await
+            .map_err(|e| anyhow!("Failed to load history: {}", e))
     }
 
     pub fn get_session_usage(&self) -> (u32, u32) {

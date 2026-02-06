@@ -34,7 +34,7 @@ struct Cli {
     #[arg(long, global = true)]
     id: Option<String>,
 
-    /// Backend to use: "mux" (direct API) or "cli" (Claude CLI)
+    /// Backend to use: "mux" (direct API), "cli" (Claude CLI), "codex" (Codex CLI), or "amplifier" (Amplifier CLI)
     #[arg(short, long, env = "COVEN_BACKEND", global = true)]
     backend: Option<String>,
 
@@ -285,11 +285,12 @@ async fn run_agent(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .unwrap_or(name);
-            let backend = config
-                .get("backend")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .or(backend);
+            let backend = backend.or_else(|| {
+                config
+                    .get("backend")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            });
             let config_working_dir = config
                 .get("working_dir")
                 .and_then(|v| v.as_str())

@@ -28,5 +28,11 @@ Thumbs.db
 # Worktrees
 .worktrees/
 
+# Local runtime data
+*.db
+.amplifier/
+.coven/
+.mux_sessions.db
+
 # XCFramework binaries (download from GitHub releases)
 CovenClientFFI.xcframework/

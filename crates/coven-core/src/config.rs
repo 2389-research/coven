@@ -15,6 +15,10 @@ pub struct Config {
     pub database: DatabaseConfig,
     /// Claude API settings (for DirectCli backend)
     pub claude: ClaudeConfig,
+    /// Codex CLI settings (for CodexCli backend)
+    pub codex: CodexConfig,
+    /// Amplifier CLI settings (for AmplifierCli backend)
+    pub amplifier: AmplifierConfig,
     /// Mux backend settings (for native Rust backend)
     pub mux: MuxBackendConfig,
     /// Slack frontend settings
@@ -52,6 +56,42 @@ impl Default for ClaudeConfig {
             timeout_secs: 300,
             system_prompt: None,
             base_url: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CodexConfig {
+    /// Path to the codex binary (defaults to "codex")
+    pub binary: String,
+    /// Request timeout in seconds
+    pub timeout_secs: u64,
+}
+
+impl Default for CodexConfig {
+    fn default() -> Self {
+        Self {
+            binary: "codex".to_string(),
+            timeout_secs: 300,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AmplifierConfig {
+    /// Path to the amplifier binary (defaults to "amplifier")
+    pub binary: String,
+    /// Request timeout in seconds
+    pub timeout_secs: u64,
+}
+
+impl Default for AmplifierConfig {
+    fn default() -> Self {
+        Self {
+            binary: "amplifier".to_string(),
+            timeout_secs: 300,
         }
     }
 }
@@ -224,6 +264,14 @@ workspace = "{home}"
 timeout_secs = 300
 # system_prompt = "You are a helpful assistant."
 # base_url = "http://localhost:4000"  # For proxies like LiteLLM
+
+[codex]
+# binary = "codex"
+timeout_secs = 300
+
+[amplifier]
+# binary = "amplifier"
+timeout_secs = 300
 
 [mux]
 # model = "claude-sonnet-4-20250514"

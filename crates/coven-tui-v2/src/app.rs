@@ -3,21 +3,33 @@
 
 use crate::client::Response;
 use crate::types::{
-    Agent, Message, Mode, PendingApproval, PersistedState, Role, SessionMetadata, StreamingMessage,
-    ToolStatus, ToolUse,
+    Agent, Message, Mode, PendingApproval, PersistedState, Role, SessionMetadata, StreamBlock,
+    StreamingMessage, ToolStatus, ToolUse,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::style::{Color, Style};
 use std::path::Path;
 use std::time::{Duration, Instant};
 use tui_textarea::TextArea;
 
 const MAX_HISTORY: usize = 100;
 
+/// Create a TextArea with black background styling
+fn styled_textarea() -> TextArea<'static> {
+    let mut ta = TextArea::default();
+    let bg = Style::default().bg(Color::Rgb(0, 0, 0));
+    ta.set_style(bg);
+    ta.set_cursor_line_style(bg);
+    ta
+}
+
 /// Actions that need async handling (returned from handle_key)
 pub enum Action {
     Quit,
     SendMessage(String),
     RefreshAgents,
+    /// Load conversation history for an agent from the gateway
+    LoadHistory(String),
     /// Approve the currently selected tool approval request
     ApproveSelected,
     /// Deny the currently selected tool approval request
@@ -80,7 +92,7 @@ impl App {
             messages: vec![],
             streaming: None,
             scroll_offset: 0,
-            input: TextArea::default(),
+            input: styled_textarea(),
             input_history: vec![],
             history_index: None,
             picker_filter: String::new(),
@@ -202,10 +214,11 @@ impl App {
                     let agent_id = agent.id.clone();
                     let agent_model = agent.model.clone().unwrap_or_default();
                     drop(filtered);
-                    self.selected_agent = Some(agent_id);
+                    self.selected_agent = Some(agent_id.clone());
                     self.session.model = agent_model;
                     self.mode = Mode::Chat;
                     self.messages.clear();
+                    return Some(Action::LoadHistory(agent_id));
                 }
             }
             KeyCode::Up => {
@@ -258,7 +271,7 @@ impl App {
                 if !content.is_empty() && self.selected_agent.is_some() {
                     self.input_history.push(content.clone());
                     self.history_index = None;
-                    self.input = TextArea::default();
+                    self.input = styled_textarea();
                     self.mode = Mode::Sending;
                     self.streaming = Some(StreamingMessage::default());
                     self.scroll_offset = 0;
@@ -294,7 +307,7 @@ impl App {
         };
 
         self.history_index = new_index;
-        self.input = TextArea::default();
+        self.input = styled_textarea();
         if let Some(i) = new_index {
             for line in self.input_history[i].lines() {
                 self.input.insert_str(line);
@@ -310,7 +323,12 @@ impl App {
         match response {
             Response::Text(text) => {
                 if let Some(streaming) = &mut self.streaming {
-                    streaming.content.push_str(&text);
+                    // Append to last text block, or create a new one
+                    if let Some(StreamBlock::Text(ref mut s)) = streaming.blocks.last_mut() {
+                        s.push_str(&text);
+                    } else {
+                        streaming.blocks.push(StreamBlock::Text(text));
+                    }
                 }
             }
             Response::Thinking(text) => {
@@ -321,25 +339,54 @@ impl App {
                     }
                 }
             }
-            Response::ToolStart(name) => {
+            Response::ToolStart { name, input } => {
                 if let Some(streaming) = &mut self.streaming {
-                    streaming.tool_uses.push(ToolUse {
+                    streaming.blocks.push(StreamBlock::Tool(ToolUse {
                         name,
+                        input,
+                        result: None,
                         status: ToolStatus::Running,
-                    });
+                    }));
                 }
             }
-            Response::ToolComplete(name) => {
+            Response::ToolResult(result) => {
                 if let Some(streaming) = &mut self.streaming {
-                    if let Some(tool) = streaming.tool_uses.iter_mut().find(|t| t.name == name) {
-                        tool.status = ToolStatus::Complete;
+                    // Attach result to the most recent running tool
+                    for block in streaming.blocks.iter_mut().rev() {
+                        if let StreamBlock::Tool(ref mut tool) = block {
+                            if tool.status == ToolStatus::Running {
+                                tool.result = Some(result);
+                                tool.status = ToolStatus::Complete;
+                                break;
+                            }
+                        }
                     }
                 }
             }
-            Response::ToolError(name, _error) => {
+            Response::ToolComplete(_detail) => {
                 if let Some(streaming) = &mut self.streaming {
-                    if let Some(tool) = streaming.tool_uses.iter_mut().find(|t| t.name == name) {
-                        tool.status = ToolStatus::Error;
+                    // Mark the most recent running tool as complete
+                    for block in streaming.blocks.iter_mut().rev() {
+                        if let StreamBlock::Tool(ref mut tool) = block {
+                            if tool.status == ToolStatus::Running {
+                                tool.status = ToolStatus::Complete;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            Response::ToolError(_name, error) => {
+                if let Some(streaming) = &mut self.streaming {
+                    // Mark the most recent running tool as errored
+                    for block in streaming.blocks.iter_mut().rev() {
+                        if let StreamBlock::Tool(ref mut tool) = block {
+                            if tool.status == ToolStatus::Running {
+                                tool.result = Some(error);
+                                tool.status = ToolStatus::Error;
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -354,15 +401,13 @@ impl App {
                 if let Some(streaming) = self.streaming.take() {
                     self.messages.push(Message {
                         role: Role::Assistant,
-                        content: streaming.content,
+                        blocks: streaming.blocks,
                         thinking: streaming.thinking,
-                        tool_uses: streaming.tool_uses,
                         timestamp: chrono::Utc::now(),
                         tokens: None,
                     });
                 }
                 self.mode = Mode::Chat;
-                // Clear any previous error on successful completion
                 self.error = None;
             }
             Response::Error(err) => {
@@ -377,10 +422,8 @@ impl App {
                 tool_name,
                 input_json,
             } => {
-                // Limit pending approvals to prevent unbounded memory growth
                 const MAX_PENDING_APPROVALS: usize = 100;
                 if self.pending_approvals.len() >= MAX_PENDING_APPROVALS {
-                    // Drop oldest approval to make room
                     self.pending_approvals.remove(0);
                     if let Some(idx) = self.selected_approval {
                         self.selected_approval = Some(idx.saturating_sub(1));
@@ -396,7 +439,6 @@ impl App {
                     timestamp: chrono::Utc::now(),
                 };
                 self.pending_approvals.push(approval);
-                // Select the first approval if none selected
                 if self.selected_approval.is_none() {
                     self.selected_approval = Some(0);
                 }
@@ -507,7 +549,14 @@ mod tests {
         app.streaming = Some(StreamingMessage::default());
         app.handle_response(Response::Text("hello ".to_string()));
         app.handle_response(Response::Text("world".to_string()));
-        assert_eq!(app.streaming.as_ref().unwrap().content, "hello world");
+        // Text should be in a single block
+        let streaming = app.streaming.as_ref().unwrap();
+        assert_eq!(streaming.blocks.len(), 1);
+        if let StreamBlock::Text(ref text) = streaming.blocks[0] {
+            assert_eq!(text, "hello world");
+        } else {
+            panic!("Expected Text block");
+        }
     }
 
     #[test]
@@ -515,15 +564,14 @@ mod tests {
         let mut app = App::new(Some("agent-1".to_string()));
         app.mode = Mode::Sending;
         app.streaming = Some(StreamingMessage {
-            content: "test response".to_string(),
+            blocks: vec![StreamBlock::Text("test response".to_string())],
             thinking: None,
-            tool_uses: vec![],
         });
         app.handle_response(Response::Done);
         assert!(app.streaming.is_none());
         assert_eq!(app.mode, Mode::Chat);
         assert_eq!(app.messages.len(), 1);
-        assert_eq!(app.messages[0].content, "test response");
+        assert_eq!(app.messages[0].content(), "test response");
     }
 
     #[test]

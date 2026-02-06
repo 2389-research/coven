@@ -32,7 +32,6 @@ coven-slack-rs.workspace = true
 coven-swarm.workspace = true
 coven-swarm-core.workspace = true
 coven-telegram-rs.workspace = true
-coven-tui.workspace = true
 
 [[bin]]
 name = "coven"

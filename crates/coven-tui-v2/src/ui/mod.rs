@@ -32,7 +32,7 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 pub fn render(f: &mut Frame, app: &App) {
     let chunks = Layout::vertical([
         Constraint::Min(1),    // Chat area
-        Constraint::Length(5), // Input area
+        Constraint::Length(4), // Input area
         Constraint::Length(1), // Status bar
     ])
     .split(f.area());

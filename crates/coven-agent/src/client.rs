@@ -6,7 +6,8 @@ use coven_connect::event::convert_event_to_response;
 use coven_connect::registration::{try_self_register, SelfRegisterResult};
 use coven_connect::MAX_REGISTRATION_ATTEMPTS;
 use coven_core::backend::{
-    ApprovalCallback, Backend, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
+    AmplifierCliBackend, AmplifierCliConfig, ApprovalCallback, Backend, CodexCliBackend,
+    CodexCliConfig, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
 };
 use coven_core::{Config, Coven, IncomingMessage, OutgoingEvent};
 use coven_proto::coven_control_client::CovenControlClient;
@@ -54,9 +55,11 @@ pub async fn run(
 
     // Create backend based on type - use the provided working_dir
     // For mux backend, keep a reference for registering pack tools later
-    // For cli backend, keep a reference to set MCP endpoint after receiving token
+    // For cli/codex backend, keep a reference to set MCP endpoint after receiving token
     let mut mux_backend: Option<Arc<MuxBackend>> = None;
     let mut cli_backend: Option<Arc<DirectCliBackend>> = None;
+    let mut codex_backend: Option<Arc<CodexCliBackend>> = None;
+    let mut amplifier_backend: Option<Arc<AmplifierCliBackend>> = None;
     let backend: Arc<dyn Backend> = match backend_type {
         "mux" => {
             eprintln!("Using MuxBackend (direct Anthropic API)");
@@ -150,7 +153,44 @@ pub async fn run(
             cli_backend = Some(backend.clone());
             backend
         }
-        _ => bail!("Unknown backend '{}'. Use 'mux' or 'cli'", backend_type),
+        "codex" => {
+            eprintln!("Using CodexCliBackend (Codex CLI subprocess)");
+            eprintln!("  Binary: {}", config.codex.binary);
+            eprintln!("  Working dir: {}", working_dir.display());
+            eprintln!("  Timeout: {}s", config.codex.timeout_secs);
+            eprintln!("  MCP endpoint: (will be set after gateway connection)");
+
+            let codex_config = CodexCliConfig {
+                binary: config.codex.binary.clone(),
+                working_dir: working_dir.to_path_buf(),
+                timeout_secs: config.codex.timeout_secs,
+                mcp_endpoint: None,
+            };
+            let backend = Arc::new(CodexCliBackend::new(codex_config));
+            codex_backend = Some(backend.clone());
+            backend
+        }
+        "amplifier" => {
+            eprintln!("Using AmplifierCliBackend (Amplifier CLI subprocess)");
+            eprintln!("  Binary: {}", config.amplifier.binary);
+            eprintln!("  Working dir: {}", working_dir.display());
+            eprintln!("  Timeout: {}s", config.amplifier.timeout_secs);
+            eprintln!("  MCP endpoint: (will be set after gateway connection)");
+
+            let amplifier_config = AmplifierCliConfig {
+                binary: config.amplifier.binary.clone(),
+                working_dir: working_dir.to_path_buf(),
+                timeout_secs: config.amplifier.timeout_secs,
+                mcp_endpoint: None,
+            };
+            let backend = Arc::new(AmplifierCliBackend::new(amplifier_config));
+            amplifier_backend = Some(backend.clone());
+            backend
+        }
+        _ => bail!(
+            "Unknown backend '{}'. Use 'mux', 'cli', 'codex', or 'amplifier'",
+            backend_type
+        ),
     };
 
     let coven = Coven::new(&config, backend).await?;
@@ -301,6 +341,38 @@ pub async fn run(
                         }
                     }
 
+                    // Set MCP endpoint for Codex backend if endpoint and token provided
+                    if let Some(ref codex) = codex_backend {
+                        if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
+                            let mcp_url =
+                                crate::build_mcp_url(&welcome.mcp_endpoint, &welcome.mcp_token);
+                            eprintln!("  MCP endpoint: {}", mcp_url);
+                            codex.set_mcp_endpoint(mcp_url);
+                        } else if welcome.mcp_endpoint.is_empty() {
+                            eprintln!("  MCP endpoint: (not provided by gateway)");
+                        } else {
+                            eprintln!(
+                                "  MCP endpoint: (no token provided, pack tools unavailable)"
+                            );
+                        }
+                    }
+
+                    // Set MCP endpoint for Amplifier backend if endpoint and token provided
+                    if let Some(ref amplifier) = amplifier_backend {
+                        if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
+                            let mcp_url =
+                                crate::build_mcp_url(&welcome.mcp_endpoint, &welcome.mcp_token);
+                            eprintln!("  MCP endpoint: {}", mcp_url);
+                            amplifier.set_mcp_endpoint(mcp_url);
+                        } else if welcome.mcp_endpoint.is_empty() {
+                            eprintln!("  MCP endpoint: (not provided by gateway)");
+                        } else {
+                            eprintln!(
+                                "  MCP endpoint: (no token provided, pack tools unavailable)"
+                            );
+                        }
+                    }
+
                     // Connect mux backend to gateway MCP if endpoint and token provided
                     if let Some(ref mux) = mux_backend {
                         if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
@@ -332,8 +404,11 @@ pub async fn run(
                                 eprintln!("    - {}", tool_def.name);
                                 mux.register_tool(pack_tool).await;
                             }
-                        } else if cli_backend.is_some() {
-                            // CLI backend: tools available via MCP server (Claude CLI connects directly)
+                        } else if cli_backend.is_some()
+                            || codex_backend.is_some()
+                            || amplifier_backend.is_some()
+                        {
+                            // CLI/Codex/Amplifier backend: tools available via MCP server (subprocess connects directly)
                             for tool_def in &welcome.available_tools {
                                 eprintln!("    - {}", tool_def.name);
                             }

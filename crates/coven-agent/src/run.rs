@@ -13,7 +13,7 @@ pub struct AgentRunConfig {
     pub name: String,
     /// Agent ID (auto-generated if None)
     pub id: Option<String>,
-    /// Backend type: "mux" or "cli"
+    /// Backend type: "mux", "cli", "codex", or "amplifier"
     pub backend: Option<String>,
     /// Working directory for the agent
     pub working_dir: Option<PathBuf>,

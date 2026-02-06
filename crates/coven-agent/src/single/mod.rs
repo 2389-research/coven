@@ -9,7 +9,8 @@ mod ui;
 
 use anyhow::{bail, Result};
 use coven_core::backend::{
-    ApprovalCallback, Backend, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
+    AmplifierCliBackend, AmplifierCliConfig, ApprovalCallback, Backend, CodexCliBackend,
+    CodexCliConfig, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
 };
 use coven_core::{Config, Coven, IncomingMessage, OutgoingEvent};
 use crossterm::{
@@ -606,7 +607,38 @@ async fn create_backend(
             let _ = pending_approvals; // Acknowledge unused parameter for CLI backend
             Ok(Arc::new(DirectCliBackend::new(cli_config)))
         }
-        _ => bail!("Unknown backend '{}'. Use 'mux' or 'cli'", backend_type),
+        "codex" => {
+            tracing::info!("Using CodexCliBackend (Codex CLI subprocess)");
+            tracing::info!("  Binary: {}", config.codex.binary);
+            tracing::info!("  Working dir: {}", working_dir.display());
+            tracing::info!("  Timeout: {}s", config.codex.timeout_secs);
+            let codex_config = CodexCliConfig {
+                binary: config.codex.binary.clone(),
+                working_dir: working_dir.to_path_buf(),
+                timeout_secs: config.codex.timeout_secs,
+                mcp_endpoint: None, // No gateway MCP in single-shot mode
+            };
+            let _ = pending_approvals; // Acknowledge unused parameter for Codex backend
+            Ok(Arc::new(CodexCliBackend::new(codex_config)))
+        }
+        "amplifier" => {
+            tracing::info!("Using AmplifierCliBackend (Amplifier CLI subprocess)");
+            tracing::info!("  Binary: {}", config.amplifier.binary);
+            tracing::info!("  Working dir: {}", working_dir.display());
+            tracing::info!("  Timeout: {}s", config.amplifier.timeout_secs);
+            let amplifier_config = AmplifierCliConfig {
+                binary: config.amplifier.binary.clone(),
+                working_dir: working_dir.to_path_buf(),
+                timeout_secs: config.amplifier.timeout_secs,
+                mcp_endpoint: None, // No gateway MCP in single-shot mode
+            };
+            let _ = pending_approvals; // Acknowledge unused parameter for Amplifier backend
+            Ok(Arc::new(AmplifierCliBackend::new(amplifier_config)))
+        }
+        _ => bail!(
+            "Unknown backend '{}'. Use 'mux', 'cli', 'codex', or 'amplifier'",
+            backend_type
+        ),
     }
 }
 

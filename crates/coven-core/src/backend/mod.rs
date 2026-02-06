@@ -1,12 +1,16 @@
 // ABOUTME: Backend trait defining how coven connects to AI providers
-// ABOUTME: Implementations: DirectCli (preferred), Mux (native Rust), ClaudeSdk (legacy)
+// ABOUTME: Implementations: DirectCli (preferred), Mux (native Rust), CodexCli, ClaudeSdk (legacy)
 
+mod amplifier_cli;
 mod claude_sdk;
+mod codex_cli;
 mod direct_cli;
 mod mux;
 mod mux_tools;
 
+pub use amplifier_cli::{AmplifierCliBackend, AmplifierCliConfig};
 pub use claude_sdk::ClaudeSdkBackend;
+pub use codex_cli::{CodexCliBackend, CodexCliConfig};
 pub use direct_cli::{DirectCliBackend, DirectCliConfig};
 pub use mux::{
     default_dangerous_tools, ApprovalCallback, MuxBackend, MuxConfig, MuxMcpServerConfig,

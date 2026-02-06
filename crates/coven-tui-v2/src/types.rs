@@ -61,6 +61,8 @@ impl From<coven_client::Agent> for Agent {
 #[derive(Debug, Clone)]
 pub struct ToolUse {
     pub name: String,
+    pub input: String,
+    pub result: Option<String>,
     pub status: ToolStatus,
 }
 
@@ -75,9 +77,9 @@ pub struct MessageTokens {
 #[derive(Debug, Clone)]
 pub struct Message {
     pub role: Role,
-    pub content: String,
+    /// Ordered blocks of text and tool uses (preserves interleaving)
+    pub blocks: Vec<StreamBlock>,
     pub thinking: Option<String>,
-    pub tool_uses: Vec<ToolUse>,
     pub timestamp: DateTime<Utc>,
     pub tokens: Option<MessageTokens>,
 }
@@ -86,9 +88,8 @@ impl Message {
     pub fn user(content: String) -> Self {
         Self {
             role: Role::User,
-            content,
+            blocks: vec![StreamBlock::Text(content)],
             thinking: None,
-            tool_uses: vec![],
             timestamp: Utc::now(),
             tokens: None,
         }
@@ -97,21 +98,56 @@ impl Message {
     pub fn assistant(content: String) -> Self {
         Self {
             role: Role::Assistant,
-            content,
+            blocks: vec![StreamBlock::Text(content)],
             thinking: None,
-            tool_uses: vec![],
             timestamp: Utc::now(),
+            tokens: None,
+        }
+    }
+
+    /// Get all text content concatenated
+    pub fn content(&self) -> String {
+        self.blocks
+            .iter()
+            .filter_map(|b| match b {
+                StreamBlock::Text(t) => Some(t.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("")
+    }
+}
+
+impl From<coven_client::Message> for Message {
+    fn from(m: coven_client::Message) -> Self {
+        let role = if m.is_user {
+            Role::User
+        } else {
+            Role::Assistant
+        };
+        let timestamp = DateTime::from_timestamp_millis(m.timestamp).unwrap_or_else(Utc::now);
+        Self {
+            role,
+            blocks: vec![StreamBlock::Text(m.content)],
+            thinking: None,
+            timestamp,
             tokens: None,
         }
     }
 }
 
+/// A block in a streaming message (text or tool use, in order)
+#[derive(Debug, Clone)]
+pub enum StreamBlock {
+    Text(String),
+    Tool(ToolUse),
+}
+
 /// A message currently being streamed
 #[derive(Debug, Clone, Default)]
 pub struct StreamingMessage {
-    pub content: String,
+    pub blocks: Vec<StreamBlock>,
     pub thinking: Option<String>,
-    pub tool_uses: Vec<ToolUse>,
 }
 
 /// Session-level metadata
@@ -168,7 +204,7 @@ mod tests {
     fn test_message_user() {
         let msg = Message::user("hello".to_string());
         assert_eq!(msg.role, Role::User);
-        assert_eq!(msg.content, "hello");
+        assert_eq!(msg.content(), "hello");
         assert!(msg.thinking.is_none());
     }
 
@@ -181,9 +217,8 @@ mod tests {
     #[test]
     fn test_streaming_message_default() {
         let sm = StreamingMessage::default();
-        assert!(sm.content.is_empty());
+        assert!(sm.blocks.is_empty());
         assert!(sm.thinking.is_none());
-        assert!(sm.tool_uses.is_empty());
     }
 
     #[test]

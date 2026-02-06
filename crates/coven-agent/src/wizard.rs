@@ -51,6 +51,8 @@ enum WizardStep {
 enum Backend {
     Mux,
     Cli,
+    Codex,
+    Amplifier,
 }
 
 impl Backend {
@@ -58,6 +60,8 @@ impl Backend {
         match self {
             Backend::Mux => "mux",
             Backend::Cli => "cli",
+            Backend::Codex => "codex",
+            Backend::Amplifier => "amplifier",
         }
     }
 
@@ -65,6 +69,8 @@ impl Backend {
         match self {
             Backend::Mux => "Direct Anthropic API (requires ANTHROPIC_API_KEY)",
             Backend::Cli => "Claude CLI subprocess (requires 'claude' binary)",
+            Backend::Codex => "Codex CLI subprocess (requires 'codex' binary)",
+            Backend::Amplifier => "Amplifier CLI subprocess (requires 'amplifier' binary)",
         }
     }
 }
@@ -507,10 +513,26 @@ fn handle_key_input(key: KeyCode, app: &mut WizardApp) {
         WizardStep::Backend => match key {
             KeyCode::Enter => app.next_step(),
             KeyCode::Esc => app.prev_step(),
-            KeyCode::Up | KeyCode::Char('k') => app.backend = Backend::Mux,
-            KeyCode::Down | KeyCode::Char('j') => app.backend = Backend::Cli,
+            KeyCode::Up | KeyCode::Char('k') => {
+                app.backend = match app.backend {
+                    Backend::Mux => Backend::Mux,
+                    Backend::Cli => Backend::Mux,
+                    Backend::Codex => Backend::Cli,
+                    Backend::Amplifier => Backend::Codex,
+                };
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                app.backend = match app.backend {
+                    Backend::Mux => Backend::Cli,
+                    Backend::Cli => Backend::Codex,
+                    Backend::Codex => Backend::Amplifier,
+                    Backend::Amplifier => Backend::Amplifier,
+                };
+            }
             KeyCode::Char('1') => app.backend = Backend::Mux,
             KeyCode::Char('2') => app.backend = Backend::Cli,
+            KeyCode::Char('3') => app.backend = Backend::Codex,
+            KeyCode::Char('4') => app.backend = Backend::Amplifier,
             _ => {}
         },
         WizardStep::Server => match key {
@@ -720,6 +742,7 @@ fn draw_backend_step(f: &mut Frame, app: &WizardApp, area: Rect) {
             Constraint::Length(1),
             Constraint::Length(2),
             Constraint::Length(2),
+            Constraint::Length(2),
             Constraint::Min(1),
         ])
         .split(area);
@@ -731,6 +754,8 @@ fn draw_backend_step(f: &mut Frame, app: &WizardApp, area: Rect) {
     for (idx, (backend, desc)) in [
         (Backend::Mux, Backend::Mux.description()),
         (Backend::Cli, Backend::Cli.description()),
+        (Backend::Codex, Backend::Codex.description()),
+        (Backend::Amplifier, Backend::Amplifier.description()),
     ]
     .iter()
     .enumerate()
@@ -753,9 +778,9 @@ fn draw_backend_step(f: &mut Frame, app: &WizardApp, area: Rect) {
         f.render_widget(Paragraph::new(text), chunks[2 + idx]);
     }
 
-    let help = Paragraph::new("[/] or [j/k] to select, [1/2] for quick select")
+    let help = Paragraph::new("[/] or [j/k] to select, [1/2/3] for quick select")
         .style(Style::default().fg(Color::DarkGray));
-    f.render_widget(help, chunks[4]);
+    f.render_widget(help, chunks[5]);
 }
 
 fn draw_server_step(f: &mut Frame, app: &WizardApp, area: Rect) {

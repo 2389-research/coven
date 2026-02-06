@@ -2,24 +2,9 @@
 // ABOUTME: Non-interactive, shows colored logs of events and status
 
 use anyhow::{bail, Result};
-
-/// Generate pack tools status message based on backend type.
-/// Returns None if tool_count is 0.
-fn pack_tools_message(tool_count: usize, is_cli_backend: bool) -> Option<String> {
-    if tool_count == 0 {
-        return None;
-    }
-    if is_cli_backend {
-        Some(format!("Pack tools: {} available", tool_count))
-    } else {
-        Some(format!(
-            "Pack tools: {} detected (mux TUI support pending)",
-            tool_count
-        ))
-    }
-}
 use coven_core::backend::{
-    ApprovalCallback, Backend, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
+    AmplifierCliBackend, AmplifierCliConfig, ApprovalCallback, Backend, CodexCliBackend,
+    CodexCliConfig, DirectCliBackend, DirectCliConfig, MuxBackend, MuxConfig,
 };
 use coven_core::{Config, Coven, IncomingMessage, OutgoingEvent};
 use coven_proto::coven_control_client::CovenControlClient;
@@ -47,12 +32,17 @@ use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex, Semaphore};
 use tonic::transport::Channel;
+use tonic::Code;
 
 use crate::metadata::AgentMetadata;
+use crate::pack_tool::{
+    handle_pack_tool_result, new_pending_pack_tools, PackTool, PendingPackTools,
+};
 
 use coven_connect::event::convert_event_to_response;
+use coven_connect::registration::{try_self_register, SelfRegisterResult};
 use coven_connect::MAX_REGISTRATION_ATTEMPTS;
 
 /// Maximum number of log lines to keep
@@ -83,6 +73,22 @@ const EXIT_TAGLINES: &[&str] = &[
     "Orchestration complete.",
     "The swarm sleeps.",
 ];
+
+/// Generate pack tools status message based on backend type.
+/// Returns None if tool_count is 0.
+fn pack_tools_message(tool_count: usize, is_subprocess_backend: bool) -> Option<String> {
+    if tool_count == 0 {
+        return None;
+    }
+    if is_subprocess_backend {
+        Some(format!("Pack tools: {} available", tool_count))
+    } else {
+        Some(format!(
+            "Pack tools: {} detected (mux TUI support pending)",
+            tool_count
+        ))
+    }
+}
 
 /// Terminal guard for safe cleanup - handles both raw mode and alternate screen
 struct TerminalGuard {
@@ -508,13 +514,16 @@ pub async fn run(
             }
         }
 
+        // Save dirty state before drawing (draw clears it during rebuild)
+        let had_new_content = app.lines_dirty;
+
         // Draw UI and get actual visible height
         terminal.draw(|f| {
             visible_height = draw_ui(f, &mut app);
         })?;
 
-        // Always auto-scroll to bottom when new content arrives
-        if app.lines_dirty {
+        // Auto-scroll to bottom when new content arrives
+        if had_new_content {
             app.scroll_to_bottom(visible_height);
         }
 
@@ -568,8 +577,14 @@ pub async fn run(
     Ok(())
 }
 
+/// Maximum concurrent message processing tasks (backpressure)
+const MAX_CONCURRENT_MESSAGES: usize = 8;
+
 /// Shared state for pending tool approvals - maps tool_id to response sender
 type PendingApprovals = Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>;
+
+/// Per-thread locks ensuring messages to the same thread are processed sequentially
+type ThreadLocks = Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>;
 
 async fn run_agent_task(
     tx: &mpsc::Sender<UiEvent>,
@@ -589,9 +604,15 @@ async fn run_agent_task(
     // Create shared state for pending approvals
     let pending_approvals: PendingApprovals = Arc::new(Mutex::new(HashMap::new()));
 
+    // Create shared state for pending pack tool requests
+    let pending_pack_tools: PendingPackTools = new_pending_pack_tools();
+
     // Create backend
-    // For CLI backend, keep a reference to set MCP endpoint after receiving token
+    // For CLI/Codex backend, keep a reference to set MCP endpoint after receiving token
+    let mut mux_backend: Option<Arc<MuxBackend>> = None;
     let mut cli_backend: Option<Arc<DirectCliBackend>> = None;
+    let mut codex_backend: Option<Arc<CodexCliBackend>> = None;
+    let mut amplifier_backend: Option<Arc<AmplifierCliBackend>> = None;
     tx.send(UiEvent::Block(
         BlockKind::System,
         format!("Initializing {} backend...", backend_type),
@@ -621,7 +642,7 @@ async fn run_agent_task(
                 soul_files: mux_settings.soul_files,
                 mcp_servers: vec![],
                 skip_default_tools: false,
-                gateway_mcp: None, // Standalone TUI doesn't connect to gateway
+                gateway_mcp: None, // Set after gateway connection
             };
 
             // Create approval callback that waits for gateway response
@@ -662,11 +683,13 @@ async fn run_agent_task(
                         as Pin<Box<dyn std::future::Future<Output = bool> + Send>>
                 });
 
-            Arc::new(
+            let backend = Arc::new(
                 MuxBackend::new(mux_config)
                     .await?
                     .with_approval_callback(approval_callback),
-            )
+            );
+            mux_backend = Some(backend.clone());
+            backend
         }
         "cli" => {
             tx.send(UiEvent::Block(
@@ -684,7 +707,42 @@ async fn run_agent_task(
             cli_backend = Some(backend.clone());
             backend
         }
-        _ => bail!("Unknown backend '{}'. Use 'mux' or 'cli'", backend_type),
+        "codex" => {
+            tx.send(UiEvent::Block(
+                BlockKind::System,
+                format!("Using CodexCliBackend ({})", config.codex.binary),
+            ))
+            .await?;
+            let codex_config = CodexCliConfig {
+                binary: config.codex.binary.clone(),
+                working_dir: working_dir.to_path_buf(),
+                timeout_secs: config.codex.timeout_secs,
+                mcp_endpoint: None, // Will be set after receiving Welcome with token
+            };
+            let backend = Arc::new(CodexCliBackend::new(codex_config));
+            codex_backend = Some(backend.clone());
+            backend
+        }
+        "amplifier" => {
+            tx.send(UiEvent::Block(
+                BlockKind::System,
+                format!("Using AmplifierCliBackend ({})", config.amplifier.binary),
+            ))
+            .await?;
+            let amplifier_config = AmplifierCliConfig {
+                binary: config.amplifier.binary.clone(),
+                working_dir: working_dir.to_path_buf(),
+                timeout_secs: config.amplifier.timeout_secs,
+                mcp_endpoint: None, // Will be set after receiving Welcome with token
+            };
+            let backend = Arc::new(AmplifierCliBackend::new(amplifier_config));
+            amplifier_backend = Some(backend.clone());
+            backend
+        }
+        _ => bail!(
+            "Unknown backend '{}'. Use 'mux', 'cli', 'codex', or 'amplifier'",
+            backend_type
+        ),
     };
 
     let coven = Coven::new(&config, backend).await?;
@@ -707,42 +765,7 @@ async fn run_agent_task(
     ))
     .await?;
 
-    // Connect to server
-    tx.send(UiEvent::Status("Connecting...".to_string()))
-        .await?;
-    tx.send(UiEvent::Block(
-        BlockKind::System,
-        format!("Connecting to gateway at {}...", server_addr),
-    ))
-    .await?;
-
-    let channel = Channel::from_shared(server_addr.to_string())?
-        .connect()
-        .await?;
-    tx.send(UiEvent::Block(
-        BlockKind::System,
-        "TCP connection established".to_string(),
-    ))
-    .await?;
-
-    // Create SSH auth interceptor
     let private_key = Arc::new(private_key);
-    let private_key_clone = private_key.clone();
-    let ssh_auth_interceptor = move |mut req: tonic::Request<()>| -> std::result::Result<tonic::Request<()>, tonic::Status> {
-        match SshAuthCredentials::new(&private_key_clone) {
-            Ok(creds) => {
-                if let Err(e) = creds.apply_to_request(&mut req) {
-                    return Err(tonic::Status::internal(format!("failed to apply SSH auth: {}", e)));
-                }
-            }
-            Err(e) => {
-                return Err(tonic::Status::internal(format!("failed to create SSH auth credentials: {}", e)));
-            }
-        }
-        Ok(req)
-    };
-
-    let mut client = CovenControlClient::with_interceptor(channel, ssh_auth_interceptor);
 
     // Gather metadata for registration
     tx.send(UiEvent::Block(
@@ -777,13 +800,64 @@ async fn run_agent_task(
     }
 
     // Registration retry loop - try with incrementing suffix if name is taken
+    // Also handles auto-registration if fingerprint is unknown
     let mut suffix: usize = 0;
+    let mut needs_reconnect = false;
+    tx.send(UiEvent::Status("Connecting...".to_string()))
+        .await?;
     let (msg_tx, mut inbound) = loop {
         let current_id = if suffix == 0 {
             agent_id.to_string()
         } else {
             format!("{}-{}", agent_id, suffix)
         };
+
+        // Connect to server (or reconnect after auto-registration)
+        if !needs_reconnect {
+            tx.send(UiEvent::Block(
+                BlockKind::System,
+                format!("Connecting to gateway at {}...", server_addr),
+            ))
+            .await?;
+        }
+        let channel = Channel::from_shared(server_addr.to_string())?
+            .connect()
+            .await?;
+        if !needs_reconnect {
+            tx.send(UiEvent::Block(
+                BlockKind::System,
+                "TCP connection established".to_string(),
+            ))
+            .await?;
+        }
+        needs_reconnect = false;
+
+        // Create SSH auth interceptor (fresh each iteration)
+        let private_key_clone = private_key.clone();
+        let ssh_auth_interceptor = move |mut req: tonic::Request<()>| -> std::result::Result<
+            tonic::Request<()>,
+            tonic::Status,
+        > {
+            match SshAuthCredentials::new(&private_key_clone) {
+                Ok(creds) => {
+                    if let Err(e) = creds.apply_to_request(&mut req) {
+                        return Err(tonic::Status::internal(format!(
+                            "failed to apply SSH auth: {}",
+                            e
+                        )));
+                    }
+                }
+                Err(e) => {
+                    return Err(tonic::Status::internal(format!(
+                        "failed to create SSH auth credentials: {}",
+                        e
+                    )));
+                }
+            }
+            Ok(req)
+        };
+
+        let mut client = CovenControlClient::with_interceptor(channel, ssh_auth_interceptor);
 
         // Create bidirectional stream
         let (msg_tx, rx) = mpsc::channel::<AgentMessage>(100);
@@ -794,7 +868,40 @@ async fn run_agent_task(
             "Opening bidirectional stream...".to_string(),
         ))
         .await?;
-        let response = client.agent_stream(outbound).await?;
+        let response = match client.agent_stream(outbound).await {
+            Ok(r) => r,
+            Err(e)
+                if e.code() == Code::Unauthenticated
+                    && e.message().contains("unknown public key") =>
+            {
+                // Try to self-register using coven-link token
+                tx.send(UiEvent::Block(
+                    BlockKind::System,
+                    "Fingerprint not registered. Attempting auto-registration...".to_string(),
+                ))
+                .await?;
+                match try_self_register(server_addr, &fingerprint, agent_id).await? {
+                    SelfRegisterResult::Success => {
+                        tx.send(UiEvent::Block(
+                            BlockKind::System,
+                            "Auto-registration succeeded. Reconnecting...".to_string(),
+                        ))
+                        .await?;
+                        needs_reconnect = true;
+                        continue;
+                    }
+                    SelfRegisterResult::NoToken(msg) => {
+                        tx.send(UiEvent::Block(BlockKind::Error, msg)).await?;
+                        bail!("Agent fingerprint not registered and no link token available. Run 'coven link' first to link this device, then try again.");
+                    }
+                    SelfRegisterResult::Failed(msg) => {
+                        tx.send(UiEvent::Block(BlockKind::Error, msg)).await?;
+                        return Err(e.into());
+                    }
+                }
+            }
+            Err(e) => return Err(e.into()),
+        };
         let mut inbound = response.into_inner();
         tx.send(UiEvent::Block(
             BlockKind::System,
@@ -840,6 +947,23 @@ async fn run_agent_task(
                     ))
                     .await?;
 
+                    // Apply secrets as environment variables
+                    if !welcome.secrets.is_empty() {
+                        tx.send(UiEvent::Block(
+                            BlockKind::System,
+                            format!("Secrets: {} configured", welcome.secrets.len()),
+                        ))
+                        .await?;
+                        for (key, value) in &welcome.secrets {
+                            std::env::set_var(key, value);
+                            tx.send(UiEvent::Block(
+                                BlockKind::System,
+                                format!("  {} = [set]", key),
+                            ))
+                            .await?;
+                        }
+                    }
+
                     // Set MCP endpoint for CLI backend if endpoint and token provided
                     if let Some(ref cli) = cli_backend {
                         if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
@@ -854,13 +978,98 @@ async fn run_agent_task(
                         }
                     }
 
-                    // Update header with pack tools count (for any backend)
+                    // Set MCP endpoint for Codex backend if endpoint and token provided
+                    if let Some(ref codex) = codex_backend {
+                        if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
+                            let mcp_url =
+                                crate::build_mcp_url(&welcome.mcp_endpoint, &welcome.mcp_token);
+                            tx.send(UiEvent::Block(
+                                BlockKind::System,
+                                "MCP endpoint: configured (token received)".to_string(),
+                            ))
+                            .await?;
+                            codex.set_mcp_endpoint(mcp_url);
+                        }
+                    }
+
+                    // Set MCP endpoint for Amplifier backend if endpoint and token provided
+                    if let Some(ref amplifier) = amplifier_backend {
+                        if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
+                            let mcp_url =
+                                crate::build_mcp_url(&welcome.mcp_endpoint, &welcome.mcp_token);
+                            tx.send(UiEvent::Block(
+                                BlockKind::System,
+                                "MCP endpoint: configured (token received)".to_string(),
+                            ))
+                            .await?;
+                            amplifier.set_mcp_endpoint(mcp_url);
+                        }
+                    }
+
+                    // Connect mux backend to gateway MCP if endpoint and token provided
+                    if let Some(ref mux) = mux_backend {
+                        if !welcome.mcp_endpoint.is_empty() && !welcome.mcp_token.is_empty() {
+                            match mux
+                                .connect_gateway_mcp(&welcome.mcp_endpoint, &welcome.mcp_token)
+                                .await
+                            {
+                                Ok(count) => {
+                                    tx.send(UiEvent::Block(
+                                        BlockKind::System,
+                                        format!("Gateway MCP: connected ({} tools)", count),
+                                    ))
+                                    .await?;
+                                }
+                                Err(e) => {
+                                    tx.send(UiEvent::Block(
+                                        BlockKind::Error,
+                                        format!("Gateway MCP: connection failed: {}", e),
+                                    ))
+                                    .await?;
+                                }
+                            }
+                        }
+                    }
+
+                    // Register pack tools if available (from Welcome message tool definitions)
                     let tool_count = welcome.available_tools.len();
                     tx.send(UiEvent::PackToolsCount(tool_count)).await?;
 
-                    // Log message differs by backend type
-                    if let Some(msg) = pack_tools_message(tool_count, cli_backend.is_some()) {
-                        tx.send(UiEvent::Block(BlockKind::System, msg)).await?;
+                    if tool_count > 0 {
+                        let is_subprocess_backend = cli_backend.is_some()
+                            || codex_backend.is_some()
+                            || amplifier_backend.is_some();
+                        if let Some(msg) = pack_tools_message(tool_count, is_subprocess_backend) {
+                            tx.send(UiEvent::Block(BlockKind::System, msg)).await?;
+                        }
+                        if let Some(ref mux) = mux_backend {
+                            for tool_def in &welcome.available_tools {
+                                let pack_tool = PackTool::new(
+                                    tool_def,
+                                    msg_tx.clone(),
+                                    pending_pack_tools.clone(),
+                                );
+                                tx.send(UiEvent::Block(
+                                    BlockKind::System,
+                                    format!("  Pack tool: {}", tool_def.name),
+                                ))
+                                .await?;
+                                mux.register_tool(pack_tool).await;
+                            }
+                        } else if is_subprocess_backend {
+                            for tool_def in &welcome.available_tools {
+                                tx.send(UiEvent::Block(
+                                    BlockKind::System,
+                                    format!("  Pack tool: {}", tool_def.name),
+                                ))
+                                .await?;
+                            }
+                            tx.send(UiEvent::Block(
+                                BlockKind::System,
+                                "  (available via MCP server)".to_string(),
+                            ))
+                            .await?;
+                        }
                     }
 
                     tx.send(UiEvent::Block(
@@ -914,7 +1123,7 @@ async fn run_agent_task(
             },
             Some(Err(e)) => {
                 // Check if this is an AlreadyExists error - if so, retry with suffix
-                if e.code() == tonic::Code::AlreadyExists {
+                if e.code() == Code::AlreadyExists {
                     tx.send(UiEvent::Block(
                         BlockKind::System,
                         format!(
@@ -941,7 +1150,19 @@ async fn run_agent_task(
         }
     };
 
+    // Wrap coven in Arc for sharing with spawned tasks
+    let coven = Arc::new(coven);
+
+    // Backpressure: limit concurrent message processing tasks
+    let message_semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT_MESSAGES));
+
+    // Per-thread locks: ensure messages to the same thread are processed sequentially
+    let thread_locks: ThreadLocks = Arc::new(Mutex::new(HashMap::new()));
+
     // Process server messages
+    // Message processing is spawned in separate tasks so this loop
+    // can continue receiving PackToolResult and ToolApproval messages that
+    // need to be delivered while message processing is in progress.
     while let Some(msg) = inbound.next().await {
         let msg = match msg {
             Ok(m) => m,
@@ -982,182 +1203,54 @@ async fn run_agent_task(
                     attachments: vec![],
                 };
 
+                // Spawn message processing in separate task so this loop can
+                // continue receiving PackToolResult and ToolApproval messages.
                 let msg_tx_clone = msg_tx.clone();
                 let request_id = send_msg.request_id.clone();
+                let coven_clone = Arc::clone(&coven);
+                let sem_clone = Arc::clone(&message_semaphore);
+                let locks_clone = Arc::clone(&thread_locks);
+                let thread_id = send_msg.thread_id.clone();
+                let ui_tx = tx.clone();
+                tokio::spawn(async move {
+                    // Acquire per-thread lock first (serializes same-thread messages
+                    // without consuming a semaphore permit while waiting)
+                    let thread_lock = {
+                        let mut locks = locks_clone.lock().await;
+                        locks
+                            .entry(thread_id.clone())
+                            .or_insert_with(|| Arc::new(Mutex::new(())))
+                            .clone()
+                    };
+                    let thread_guard = thread_lock.lock().await;
 
-                match coven.handle(incoming).await {
-                    Ok(mut stream) => {
-                        let mut event_count = 0;
-                        while let Some(event) = stream.next().await {
-                            event_count += 1;
+                    // Now acquire semaphore permit for global backpressure
+                    let permit = sem_clone.acquire().await.expect("semaphore closed");
 
-                            // Log the event to UI
-                            match &event {
-                                OutgoingEvent::Thinking => {
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::Thinking,
-                                        "Thinking...".to_string(),
-                                    ))
-                                    .await?;
-                                }
-                                OutgoingEvent::Text(t) => {
-                                    // Show full text content
-                                    tx.send(UiEvent::Block(BlockKind::Assistant, t.clone()))
-                                        .await?;
-                                }
-                                OutgoingEvent::ToolUse { name, input, .. } => {
-                                    // Show tool name and input preview
-                                    let input_str = input.to_string();
-                                    let input_preview: String =
-                                        input_str.chars().take(100).collect();
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::ToolCall,
-                                        format!(
-                                            "{}: {}{}",
-                                            name,
-                                            input_preview,
-                                            if input_str.len() > 100 { "..." } else { "" }
-                                        ),
-                                    ))
-                                    .await?;
-                                }
-                                OutgoingEvent::ToolResult {
-                                    is_error, output, ..
-                                } => {
-                                    let output_preview: String = output.chars().take(200).collect();
-                                    if *is_error {
-                                        tx.send(UiEvent::Block(
-                                            BlockKind::Error,
-                                            format!(
-                                                "Error: {}{}",
-                                                output_preview,
-                                                if output.len() > 200 { "..." } else { "" }
-                                            ),
-                                        ))
-                                        .await?;
-                                    } else {
-                                        tx.send(UiEvent::Block(
-                                            BlockKind::ToolOutput,
-                                            format!(
-                                                "{}{}",
-                                                output_preview,
-                                                if output.len() > 200 { "..." } else { "" }
-                                            ),
-                                        ))
-                                        .await?;
-                                    }
-                                }
-                                OutgoingEvent::Done { .. } => {
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::System,
-                                        format!("Complete ({} events)", event_count),
-                                    ))
-                                    .await?;
-                                }
-                                OutgoingEvent::Error(e) => {
-                                    tx.send(UiEvent::Block(BlockKind::Error, e.clone())).await?;
-                                }
-                                OutgoingEvent::File { filename, .. } => {
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::System,
-                                        format!("File: {}", filename),
-                                    ))
-                                    .await?;
-                                }
-                                OutgoingEvent::ToolApprovalRequest { name, input, .. } => {
-                                    let input_str = input.to_string();
-                                    let input_preview: String =
-                                        input_str.chars().take(60).collect();
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::ToolCall,
-                                        format!(
-                                            "Approve? {}: {}{}",
-                                            name,
-                                            input_preview,
-                                            if input_str.len() > 60 { "..." } else { "" }
-                                        ),
-                                    ))
-                                    .await?;
-                                }
-                                OutgoingEvent::SessionInit { session_id } => {
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::System,
-                                        format!("Session: {}", session_id),
-                                    ))
-                                    .await?;
-                                }
-                                OutgoingEvent::SessionOrphaned => {
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::Error,
-                                        "Session expired - please retry".to_string(),
-                                    ))
-                                    .await?;
-                                }
-                                OutgoingEvent::Usage {
-                                    input_tokens,
-                                    output_tokens,
-                                    cache_read_tokens,
-                                    thinking_tokens,
-                                    ..
-                                } => {
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::System,
-                                        format!(
-                                            "Usage: in={} out={} cache={} think={}",
-                                            input_tokens,
-                                            output_tokens,
-                                            cache_read_tokens,
-                                            thinking_tokens
-                                        ),
-                                    ))
-                                    .await?;
-                                }
-                                OutgoingEvent::ToolState { id, state, detail } => {
-                                    let detail_str = detail
-                                        .as_deref()
-                                        .map(|d| format!(" ({})", d))
-                                        .unwrap_or_default();
-                                    tx.send(UiEvent::Block(
-                                        BlockKind::System,
-                                        format!("Tool {}: {}{}", id, state, detail_str),
-                                    ))
-                                    .await?;
-                                }
-                            }
+                    process_message_tui(
+                        coven_clone,
+                        incoming,
+                        request_id,
+                        msg_tx_clone,
+                        ui_tx.clone(),
+                    )
+                    .await;
 
-                            let response = convert_event_to_response(&request_id, event).await;
-                            if msg_tx_clone.send(response).await.is_err() {
-                                break;
-                            }
+                    let _ = ui_tx.send(UiEvent::Status("Ready".to_string())).await;
+
+                    // Release guards before eviction check
+                    drop(permit);
+                    drop(thread_guard);
+                    drop(thread_lock);
+
+                    // Evict unused thread lock to prevent unbounded memory growth
+                    let mut locks = locks_clone.lock().await;
+                    if let Some(lock) = locks.get(&thread_id) {
+                        if Arc::strong_count(lock) == 1 {
+                            locks.remove(&thread_id);
                         }
                     }
-                    Err(e) => {
-                        tx.send(UiEvent::Block(BlockKind::Error, format!("Error: {}", e)))
-                            .await?;
-                        let error_response = AgentMessage {
-                            payload: Some(agent_message::Payload::Response(MessageResponse {
-                                request_id: request_id.clone(),
-                                event: Some(coven_proto::message_response::Event::Error(
-                                    e.to_string(),
-                                )),
-                            })),
-                        };
-                        msg_tx_clone.send(error_response).await?;
-
-                        let done_response = AgentMessage {
-                            payload: Some(agent_message::Payload::Response(MessageResponse {
-                                request_id: request_id.clone(),
-                                event: Some(coven_proto::message_response::Event::Done(
-                                    coven_proto::Done {
-                                        full_response: format!("Error: {}", e),
-                                    },
-                                )),
-                            })),
-                        };
-                        msg_tx_clone.send(done_response).await?;
-                    }
-                }
-                tx.send(UiEvent::Status("Ready".to_string())).await?;
+                });
             }
             Some(server_message::Payload::Shutdown(shutdown)) => {
                 tx.send(UiEvent::Block(
@@ -1190,6 +1283,12 @@ async fn run_agent_task(
                         ))
                         .await?;
                     }
+                } else {
+                    tx.send(UiEvent::Block(
+                        BlockKind::Error,
+                        format!("No pending approval found for {}", approval.id),
+                    ))
+                    .await?;
                 }
             }
             Some(server_message::Payload::InjectContext(inject)) => {
@@ -1213,12 +1312,25 @@ async fn run_agent_task(
                 // TODO: Implement request cancellation
             }
             Some(server_message::Payload::PackToolResult(result)) => {
-                // Pack tool results are handled by the client.rs message loop, not TUI
+                let status = match &result.result {
+                    Some(coven_proto::pack_tool_result::Result::OutputJson(_)) => "success",
+                    Some(coven_proto::pack_tool_result::Result::Error(_)) => "error",
+                    None => "empty",
+                };
                 tx.send(UiEvent::Block(
                     BlockKind::System,
-                    format!("Pack tool result: {}", result.request_id),
+                    format!("Pack tool result [{}]: {}", result.request_id, status),
                 ))
                 .await?;
+
+                // Route result to waiting PackTool
+                if !handle_pack_tool_result(&pending_pack_tools, result).await {
+                    tx.send(UiEvent::Block(
+                        BlockKind::Error,
+                        "No pending pack tool request found".to_string(),
+                    ))
+                    .await?;
+                }
             }
             None => {}
         }
@@ -1238,6 +1350,210 @@ async fn run_agent_task(
     .await?;
 
     Ok(())
+}
+
+/// Process a single message from the gateway.
+/// Runs in a spawned task so the main loop can continue receiving
+/// PackToolResult and ToolApproval messages.
+async fn process_message_tui(
+    coven: Arc<Coven>,
+    incoming: IncomingMessage,
+    request_id: String,
+    msg_tx: mpsc::Sender<AgentMessage>,
+    ui_tx: mpsc::Sender<UiEvent>,
+) {
+    match coven.handle(incoming).await {
+        Ok(mut stream) => {
+            let mut event_count = 0;
+            while let Some(event) = stream.next().await {
+                event_count += 1;
+
+                // Log the event to UI
+                match &event {
+                    OutgoingEvent::Thinking => {
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::Thinking,
+                                "Thinking...".to_string(),
+                            ))
+                            .await;
+                    }
+                    OutgoingEvent::Text(t) => {
+                        let _ = ui_tx
+                            .send(UiEvent::Block(BlockKind::Assistant, t.clone()))
+                            .await;
+                    }
+                    OutgoingEvent::ToolUse { name, input, .. } => {
+                        let input_str = input.to_string();
+                        let input_preview: String = input_str.chars().take(100).collect();
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::ToolCall,
+                                format!(
+                                    "{}: {}{}",
+                                    name,
+                                    input_preview,
+                                    if input_str.len() > 100 { "..." } else { "" }
+                                ),
+                            ))
+                            .await;
+                    }
+                    OutgoingEvent::ToolResult {
+                        is_error, output, ..
+                    } => {
+                        let output_preview: String = output.chars().take(200).collect();
+                        if *is_error {
+                            let _ = ui_tx
+                                .send(UiEvent::Block(
+                                    BlockKind::Error,
+                                    format!(
+                                        "Error: {}{}",
+                                        output_preview,
+                                        if output.len() > 200 { "..." } else { "" }
+                                    ),
+                                ))
+                                .await;
+                        } else {
+                            let _ = ui_tx
+                                .send(UiEvent::Block(
+                                    BlockKind::ToolOutput,
+                                    format!(
+                                        "{}{}",
+                                        output_preview,
+                                        if output.len() > 200 { "..." } else { "" }
+                                    ),
+                                ))
+                                .await;
+                        }
+                    }
+                    OutgoingEvent::Done { .. } => {
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::System,
+                                format!("Complete ({} events)", event_count),
+                            ))
+                            .await;
+                    }
+                    OutgoingEvent::Error(e) => {
+                        let _ = ui_tx
+                            .send(UiEvent::Block(BlockKind::Error, e.clone()))
+                            .await;
+                    }
+                    OutgoingEvent::File { filename, .. } => {
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::System,
+                                format!("File: {}", filename),
+                            ))
+                            .await;
+                    }
+                    OutgoingEvent::ToolApprovalRequest { name, input, .. } => {
+                        let input_str = input.to_string();
+                        let input_preview: String = input_str.chars().take(60).collect();
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::ToolCall,
+                                format!(
+                                    "Approve? {}: {}{}",
+                                    name,
+                                    input_preview,
+                                    if input_str.len() > 60 { "..." } else { "" }
+                                ),
+                            ))
+                            .await;
+                    }
+                    OutgoingEvent::SessionInit { session_id } => {
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::System,
+                                format!("Session: {}", session_id),
+                            ))
+                            .await;
+                    }
+                    OutgoingEvent::SessionOrphaned => {
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::Error,
+                                "Session expired - please retry".to_string(),
+                            ))
+                            .await;
+                    }
+                    OutgoingEvent::Usage {
+                        input_tokens,
+                        output_tokens,
+                        cache_read_tokens,
+                        thinking_tokens,
+                        ..
+                    } => {
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::System,
+                                format!(
+                                    "Usage: in={} out={} cache={} think={}",
+                                    input_tokens, output_tokens, cache_read_tokens, thinking_tokens
+                                ),
+                            ))
+                            .await;
+                    }
+                    OutgoingEvent::ToolState { id, state, detail } => {
+                        let detail_str = detail
+                            .as_deref()
+                            .map(|d| format!(" ({})", d))
+                            .unwrap_or_default();
+                        let _ = ui_tx
+                            .send(UiEvent::Block(
+                                BlockKind::System,
+                                format!("Tool {}: {}{}", id, state, detail_str),
+                            ))
+                            .await;
+                    }
+                }
+
+                let response = convert_event_to_response(&request_id, event).await;
+                if msg_tx.send(response).await.is_err() {
+                    break;
+                }
+            }
+        }
+        Err(e) => {
+            let _ = ui_tx
+                .send(UiEvent::Block(BlockKind::Error, format!("Error: {}", e)))
+                .await;
+            let error_response = AgentMessage {
+                payload: Some(agent_message::Payload::Response(MessageResponse {
+                    request_id: request_id.clone(),
+                    event: Some(coven_proto::message_response::Event::Error(e.to_string())),
+                })),
+            };
+            if let Err(send_err) = msg_tx.send(error_response).await {
+                let _ = ui_tx
+                    .send(UiEvent::Block(
+                        BlockKind::Error,
+                        format!("Failed to send error response: {}", send_err),
+                    ))
+                    .await;
+            }
+
+            let done_response = AgentMessage {
+                payload: Some(agent_message::Payload::Response(MessageResponse {
+                    request_id: request_id.clone(),
+                    event: Some(coven_proto::message_response::Event::Done(
+                        coven_proto::Done {
+                            full_response: format!("Error: {}", e),
+                        },
+                    )),
+                })),
+            };
+            if let Err(send_err) = msg_tx.send(done_response).await {
+                let _ = ui_tx
+                    .send(UiEvent::Block(
+                        BlockKind::Error,
+                        format!("Failed to send done response: {}", send_err),
+                    ))
+                    .await;
+            }
+        }
+    }
 }
 
 fn draw_ui(f: &mut Frame, app: &mut App) -> usize {

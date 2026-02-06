@@ -153,6 +153,21 @@ async fn run_main_loop(
         }
     }
 
+    // Load history for restored agent (if any)
+    if let Some(agent_id) = &app.selected_agent {
+        match client.load_history(agent_id).await {
+            Ok(messages) => {
+                app.messages = messages
+                    .into_iter()
+                    .map(coven_tui_v2::types::Message::from)
+                    .collect();
+            }
+            Err(e) => {
+                tracing::warn!("Failed to load history for {}: {}", agent_id, e);
+            }
+        }
+    }
+
     // Spawn input task
     let _input_handle = spawn_input_task(key_tx);
 
@@ -183,6 +198,20 @@ async fn run_main_loop(
                                     app.error = Some(format!("Failed to send: {}", e));
                                     app.streaming = None;
                                     app.mode = coven_tui_v2::types::Mode::Chat;
+                                }
+                            }
+                        }
+                        Action::LoadHistory(agent_id) => {
+                            match client.load_history(&agent_id).await {
+                                Ok(messages) => {
+                                    app.messages = messages
+                                        .into_iter()
+                                        .map(coven_tui_v2::types::Message::from)
+                                        .collect();
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Failed to load history: {}", e);
+                                    // Not a fatal error - just start with empty chat
                                 }
                             }
                         }
@@ -290,14 +319,13 @@ async fn run_main_loop(
     Ok(())
 }
 
-/// Spawn a blocking task to read crossterm events
+/// Spawn a blocking task to read crossterm key events
 fn spawn_input_task(key_tx: mpsc::Sender<KeyEvent>) -> tokio::task::JoinHandle<()> {
     tokio::task::spawn_blocking(move || {
         loop {
             // Poll with a short timeout to check if channel is still open
             if event::poll(Duration::from_millis(50)).unwrap_or(false) {
                 if let Ok(Event::Key(key)) = event::read() {
-                    // Try to send, exit if channel closed
                     if key_tx.blocking_send(key).is_err() {
                         break;
                     }
