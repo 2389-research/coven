@@ -160,9 +160,8 @@ impl Backend for DirectCliBackend {
 /// Spawn the Claude CLI process with appropriate arguments.
 ///
 /// When an MCP endpoint is provided (gateway pack tools), it's passed via --mcp-config
-/// which adds the server while preserving default MCP discovery from ~/.claude.
-/// Note: --strict-mcp-config disables all other discovery and causes hangs in some
-/// environments, so we use --mcp-config instead.
+/// with --strict-mcp-config to ONLY use the gateway's MCP server. This avoids hangs
+/// caused by other MCP servers configured in ~/.claude.
 async fn spawn_cli_process(
     config: &DirectCliConfig,
     session_id: &str,
@@ -295,12 +294,7 @@ async fn process_cli_output(child: &mut Child, event_tx: mpsc::Sender<BackendEve
             }
             Err(e) => {
                 // Log parse failures to help debug unexpected CLI output
-                let display_line = if line.chars().count() > 200 {
-                    let truncated: String = line.chars().take(200).collect();
-                    format!("{}...[truncated]", truncated)
-                } else {
-                    line.clone()
-                };
+                let display_line = truncate_preview(&line, 200);
                 tracing::warn!(
                     error = %e,
                     line = %display_line,
@@ -350,6 +344,16 @@ async fn process_cli_output(child: &mut Child, event_tx: mpsc::Sender<BackendEve
     }
 
     Ok(())
+}
+
+/// Truncate a string to `max_chars` characters, appending "...[truncated]" if it exceeds the limit.
+fn truncate_preview(s: &str, max_chars: usize) -> String {
+    if s.chars().count() > max_chars {
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{}...[truncated]", truncated)
+    } else {
+        s.to_string()
+    }
 }
 
 fn parse_cli_event(json: &Value, accumulated_text: &mut String) -> Option<Vec<BackendEvent>> {
@@ -559,11 +563,23 @@ fn parse_cli_event(json: &Value, accumulated_text: &mut String) -> Option<Vec<Ba
                             .and_then(|i| i.as_str())
                             .unwrap_or("unknown")
                             .to_string();
-                        let output = item
-                            .get("content")
-                            .and_then(|c| c.as_str())
-                            .unwrap_or("")
-                            .to_string();
+                        // Content can be a string or an array of content blocks
+                        let output = match item.get("content") {
+                            Some(c) if c.is_string() => c.as_str().unwrap_or("").to_string(),
+                            Some(c) if c.is_array() => {
+                                // Extract text from content blocks: [{"type":"text","text":"..."}]
+                                c.as_array()
+                                    .map(|blocks| {
+                                        blocks
+                                            .iter()
+                                            .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+                                            .collect::<Vec<_>>()
+                                            .join("\n")
+                                    })
+                                    .unwrap_or_default()
+                            }
+                            _ => String::new(),
+                        };
                         let is_error = item
                             .get("is_error")
                             .and_then(|e| e.as_bool())
@@ -583,15 +599,7 @@ fn parse_cli_event(json: &Value, accumulated_text: &mut String) -> Option<Vec<Ba
             None
         }
         unknown => {
-            let json_preview: String = {
-                let full = json.to_string();
-                if full.chars().count() > 200 {
-                    let truncated: String = full.chars().take(200).collect();
-                    format!("{}...[truncated]", truncated)
-                } else {
-                    full
-                }
-            };
+            let json_preview = truncate_preview(&json.to_string(), 200);
             tracing::debug!(
                 event_type = %unknown,
                 json_preview = %json_preview,
@@ -884,6 +892,140 @@ mod tests {
         let mut acc = String::new();
         let result = parse_cli_event(&json, &mut acc);
         assert!(result.is_none());
+    }
+
+    // ── 6. Error edge cases ────────────────────────────────────────────
+
+    #[test]
+    fn error_result_with_empty_errors_array() {
+        let json = json!({
+            "type": "result",
+            "is_error": true,
+            "errors": []
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::Error(msg) => {
+                assert_eq!(msg, "Unknown error");
+            }
+            other => panic!("expected BackendEvent::Error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn error_result_with_non_string_errors_entries() {
+        let json = json!({
+            "type": "result",
+            "is_error": true,
+            "errors": ["valid", 42, null]
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::Error(msg) => {
+                assert_eq!(msg, "valid");
+            }
+            other => panic!("expected BackendEvent::Error, got {:?}", other),
+        }
+    }
+
+    // ── 7. Tool result content variants ──────────────────────────────────
+
+    #[test]
+    fn tool_result_with_string_content() {
+        let json = json!({
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "tool_1",
+                        "content": "plain string"
+                    }
+                ]
+            }
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::ToolResult {
+                id,
+                output,
+                is_error,
+            } => {
+                assert_eq!(id, "tool_1");
+                assert_eq!(output, "plain string");
+                assert!(!is_error);
+            }
+            other => panic!("expected BackendEvent::ToolResult, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn tool_result_with_array_content() {
+        let json = json!({
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "tool_2",
+                        "content": [
+                            {"type": "text", "text": "from blocks"}
+                        ]
+                    }
+                ]
+            }
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::ToolResult {
+                id,
+                output,
+                is_error,
+            } => {
+                assert_eq!(id, "tool_2");
+                assert_eq!(output, "from blocks");
+                assert!(!is_error);
+            }
+            other => panic!("expected BackendEvent::ToolResult, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn tool_result_with_missing_content() {
+        let json = json!({
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "tool_3"
+                    }
+                ]
+            }
+        });
+        let mut acc = String::new();
+        let events = parse_cli_event(&json, &mut acc).expect("should return events");
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            BackendEvent::ToolResult {
+                id,
+                output,
+                is_error,
+            } => {
+                assert_eq!(id, "tool_3");
+                assert_eq!(output, "");
+                assert!(!is_error);
+            }
+            other => panic!("expected BackendEvent::ToolResult, got {:?}", other),
+        }
     }
 
     // ── Bonus: accumulated text flows into result Done ───────────────────
