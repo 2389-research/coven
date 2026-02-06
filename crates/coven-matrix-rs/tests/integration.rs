@@ -147,3 +147,113 @@ port = 6666
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("password"));
 }
+
+#[test]
+fn test_legacy_gateway_url_http() {
+    let config_content = r#"
+[matrix]
+homeserver = "https://matrix.org"
+username = "@bot:matrix.org"
+password = "secret"
+
+[gateway]
+url = "http://myhost:7890"
+"#;
+
+    let mut file = NamedTempFile::new().unwrap();
+    file.write_all(config_content.as_bytes()).unwrap();
+
+    let config = Config::load(Some(file.path().to_path_buf())).unwrap();
+    assert_eq!(config.gateway.host, "myhost");
+    assert_eq!(config.gateway.port, 7890);
+    assert!(!config.gateway.tls);
+    assert_eq!(config.gateway.endpoint_uri(), "http://myhost:7890");
+}
+
+#[test]
+fn test_legacy_gateway_url_https() {
+    let config_content = r#"
+[matrix]
+homeserver = "https://matrix.org"
+username = "@bot:matrix.org"
+password = "secret"
+
+[gateway]
+url = "https://gateway.example.com:8443"
+"#;
+
+    let mut file = NamedTempFile::new().unwrap();
+    file.write_all(config_content.as_bytes()).unwrap();
+
+    let config = Config::load(Some(file.path().to_path_buf())).unwrap();
+    assert_eq!(config.gateway.host, "gateway.example.com");
+    assert_eq!(config.gateway.port, 8443);
+    assert!(config.gateway.tls);
+    assert_eq!(
+        config.gateway.endpoint_uri(),
+        "https://gateway.example.com:8443"
+    );
+}
+
+#[test]
+fn test_legacy_gateway_url_no_port() {
+    let config_content = r#"
+[matrix]
+homeserver = "https://matrix.org"
+username = "@bot:matrix.org"
+password = "secret"
+
+[gateway]
+url = "http://myhost"
+"#;
+
+    let mut file = NamedTempFile::new().unwrap();
+    file.write_all(config_content.as_bytes()).unwrap();
+
+    let config = Config::load(Some(file.path().to_path_buf())).unwrap();
+    assert_eq!(config.gateway.host, "myhost");
+    assert_eq!(config.gateway.port, 6666); // default for http
+    assert!(!config.gateway.tls);
+}
+
+#[test]
+fn test_legacy_gateway_url_trailing_slash() {
+    let config_content = r#"
+[matrix]
+homeserver = "https://matrix.org"
+username = "@bot:matrix.org"
+password = "secret"
+
+[gateway]
+url = "http://myhost:7890/"
+"#;
+
+    let mut file = NamedTempFile::new().unwrap();
+    file.write_all(config_content.as_bytes()).unwrap();
+
+    let config = Config::load(Some(file.path().to_path_buf())).unwrap();
+    assert_eq!(config.gateway.host, "myhost");
+    assert_eq!(config.gateway.port, 7890);
+}
+
+#[test]
+fn test_explicit_host_takes_precedence_over_legacy_url() {
+    let config_content = r#"
+[matrix]
+homeserver = "https://matrix.org"
+username = "@bot:matrix.org"
+password = "secret"
+
+[gateway]
+host = "explicit-host"
+port = 9999
+url = "http://legacy-host:1234"
+"#;
+
+    let mut file = NamedTempFile::new().unwrap();
+    file.write_all(config_content.as_bytes()).unwrap();
+
+    let config = Config::load(Some(file.path().to_path_buf())).unwrap();
+    assert_eq!(config.gateway.host, "explicit-host");
+    assert_eq!(config.gateway.port, 9999);
+}

@@ -54,6 +54,8 @@ pub struct CommandContext<'a> {
     pub gateway: &'a Arc<RwLock<GatewayClient>>,
     pub bindings: &'a Arc<RwLock<HashMap<OwnedRoomId, RoomBinding>>>,
     pub room_id: &'a OwnedRoomId,
+    /// The Matrix user who sent the command (used to set binding ownership).
+    pub sender: &'a str,
 }
 
 pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Result<String> {
@@ -62,7 +64,7 @@ pub async fn execute_command(command: Command, ctx: CommandContext<'_>) -> Resul
             let binding = RoomBinding {
                 room_id: ctx.room_id.clone(),
                 conversation_key: agent_id.clone(),
-                owner: None,
+                owner: Some(ctx.sender.to_string()),
             };
             ctx.bindings
                 .write()

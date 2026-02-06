@@ -138,12 +138,18 @@ impl Bridge {
                         return;
                     };
 
-                    // Parse commands before allowlist check so DM-based
-                    // bind/rooms commands work even when allowed_rooms is set.
-                    let is_command = Command::parse(&text).is_some();
+                    // Check if this is a DM (direct room with just bot + user).
+                    // Computed early so the allowlist check can bypass for DM commands.
+                    let is_dm = room.is_direct().await.unwrap_or(false) && {
+                        let members = room.members(RoomMemberships::ACTIVE).await;
+                        members.map(|m| m.len() == 2).unwrap_or(false)
+                    };
 
-                    // Check if room is allowed (bypass for !coven commands)
-                    if !is_command && !config.is_room_allowed(room_id.as_str()) {
+                    // Bypass room allowlist only for !coven commands sent via DM.
+                    // Non-DM rooms still require allowlist membership even for commands.
+                    let is_dm_command = is_dm && Command::parse(&text).is_some();
+
+                    if !is_dm_command && !config.is_room_allowed(room_id.as_str()) {
                         debug!(room_id = %room_id, "Message from non-allowed room, ignoring");
                         return;
                     }
@@ -158,12 +164,6 @@ impl Bridge {
                     // Commands work regardless of room binding status
                     if let Some(command) = Command::parse(&text) {
                         info!(room_id = %room_id, sender = %event.sender, "Processing !coven command");
-
-                        // Check if this is a DM (direct room with just bot + user)
-                        let is_dm = room.is_direct().await.unwrap_or(false) && {
-                            let members = room.members(RoomMemberships::ACTIVE).await;
-                            members.map(|m| m.len() == 2).unwrap_or(false)
-                        };
 
                         // Handle DM-specific bind command: create room + invite + bind
                         if is_dm {
@@ -284,6 +284,7 @@ impl Bridge {
                             gateway: &gateway,
                             bindings: &bindings,
                             room_id: &room_id,
+                            sender: event.sender.as_str(),
                         };
                         let response = match execute_command(command, ctx).await {
                             Ok(resp) => resp,
