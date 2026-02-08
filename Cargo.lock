@@ -1134,6 +1134,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "coven-human"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "coven-client",
+ "coven-grpc",
+ "coven-ssh",
+ "crossterm",
+ "ratatui",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "coven-link"
 version = "0.1.0"
 dependencies = [

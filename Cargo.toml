@@ -89,6 +89,7 @@ mux = { git = "https://github.com/2389-research/mux-rs", branch = "main" }
 coven-proto = { path = "crates/coven-proto" }
 coven-ssh = { path = "crates/coven-ssh" }
 coven-grpc = { path = "crates/coven-grpc" }
+coven-human = { path = "crates/coven-human" }
 coven-client = { path = "crates/coven-client" }
 coven-pack = { path = "crates/coven-pack" }
 coven-core = { path = "crates/coven-core" }
