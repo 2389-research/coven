@@ -301,6 +301,10 @@ async fn run_main_loop(
                                 app.streaming = None;
                                 app.mode = coven_tui_v2::types::Mode::Chat;
                             }
+                        } else {
+                            app.error = Some("No agent selected".to_string());
+                            app.streaming = None;
+                            app.mode = coven_tui_v2::types::Mode::Chat;
                         }
                     }
                 }

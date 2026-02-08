@@ -316,6 +316,8 @@ impl App {
             KeyCode::Enter if !key.modifiers.contains(KeyModifiers::SHIFT) => {
                 let content = self.input.lines().join("\n").trim().to_string();
                 if !content.is_empty() {
+                    self.input_history.push(content.clone());
+                    self.history_index = None;
                     self.pending_messages.push_back(content);
                     self.input = styled_textarea();
                 }
