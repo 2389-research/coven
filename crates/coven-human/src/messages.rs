@@ -119,18 +119,13 @@ impl fmt::Display for Message {
 }
 
 /// Input mode for the TUI
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InputMode {
     /// Viewing messages (readonly)
+    #[default]
     Viewing,
     /// Composing a reply (editing)
     Composing,
-}
-
-impl Default for InputMode {
-    fn default() -> Self {
-        Self::Viewing
-    }
 }
 
 impl fmt::Display for InputMode {
