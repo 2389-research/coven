@@ -516,8 +516,15 @@ async fn run_agent(cmd: AgentCommands) -> Result<()> {
 }
 
 /// Open the TUI chat interface by exec'ing the coven-chat binary
-async fn run_chat(_gateway: Option<String>, _theme: Option<String>) -> Result<()> {
-    let status = std::process::Command::new("coven-chat")
+async fn run_chat(gateway: Option<String>, theme: Option<String>) -> Result<()> {
+    let mut cmd = std::process::Command::new("coven-chat");
+    if let Some(gw) = gateway {
+        cmd.args(["--gateway", &gw]);
+    }
+    if let Some(th) = theme {
+        cmd.args(["--theme", &th]);
+    }
+    let status = cmd
         .status()
         .map_err(|e| anyhow::anyhow!("Failed to launch coven-chat: {}. Is it installed?", e))?;
     if !status.success() {

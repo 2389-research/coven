@@ -8,6 +8,7 @@ use crate::types::{
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::{Color, Style};
+use std::collections::VecDeque;
 use std::path::Path;
 use std::time::{Duration, Instant};
 use tui_textarea::TextArea;
@@ -71,6 +72,12 @@ pub struct App {
     // Quit handling
     pub last_ctrl_c: Option<Instant>,
 
+    // Queued messages to send after current response completes
+    pub pending_messages: VecDeque<String>,
+
+    // Action to execute after response handling (for queued message drain)
+    pub queued_action: Option<Action>,
+
     // Throbber animation frame
     pub throbber_frame: usize,
 
@@ -101,6 +108,8 @@ impl App {
             connected: false,
             error: None,
             last_ctrl_c: None,
+            pending_messages: VecDeque::new(),
+            queued_action: None,
             throbber_frame: 0,
             pending_approvals: vec![],
             selected_approval: None,
@@ -197,7 +206,7 @@ impl App {
         match self.mode {
             Mode::Picker => self.handle_picker_key(key),
             Mode::Chat => self.handle_chat_key(key),
-            Mode::Sending => None,
+            Mode::Sending => self.handle_sending_key(key),
         }
     }
 
@@ -281,6 +290,37 @@ impl App {
             }
 
             // Pass to textarea
+            _ => {
+                self.input.input(key);
+            }
+        }
+        None
+    }
+
+    fn handle_sending_key(&mut self, key: KeyEvent) -> Option<Action> {
+        match key.code {
+            // Scroll
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.scroll_offset = self.scroll_offset.saturating_add(1);
+            }
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.scroll_offset = self.scroll_offset.saturating_sub(1);
+            }
+            KeyCode::PageUp => {
+                self.scroll_offset = self.scroll_offset.saturating_add(10);
+            }
+            KeyCode::PageDown => {
+                self.scroll_offset = self.scroll_offset.saturating_sub(10);
+            }
+            // Queue message for sending after current response completes
+            KeyCode::Enter if !key.modifiers.contains(KeyModifiers::SHIFT) => {
+                let content = self.input.lines().join("\n").trim().to_string();
+                if !content.is_empty() {
+                    self.pending_messages.push_back(content);
+                    self.input = styled_textarea();
+                }
+            }
+            // Pass to textarea for typing
             _ => {
                 self.input.input(key);
             }
@@ -407,7 +447,16 @@ impl App {
                         tokens: None,
                     });
                 }
-                self.mode = Mode::Chat;
+                // Check for queued messages before returning to Chat mode
+                if let Some(queued) = self.pending_messages.pop_front() {
+                    self.mode = Mode::Sending;
+                    self.streaming = Some(StreamingMessage::default());
+                    self.scroll_offset = 0;
+                    self.messages.push(Message::user(queued.clone()));
+                    self.queued_action = Some(Action::SendMessage(queued));
+                } else {
+                    self.mode = Mode::Chat;
+                }
                 self.error = None;
             }
             Response::Error(err) => {
@@ -444,6 +493,11 @@ impl App {
                 }
             }
         }
+    }
+
+    /// Take a queued action (from message queue drain) if one exists
+    pub fn take_queued_action(&mut self) -> Option<Action> {
+        self.queued_action.take()
     }
 
     /// Check if Ctrl+C hint should be shown
@@ -688,6 +742,36 @@ mod tests {
             timestamp: chrono::Utc::now(),
         });
         assert!(app.has_pending_approvals());
+    }
+
+    #[test]
+    fn test_pending_messages_queue() {
+        let mut app = App::new(Some("agent-1".to_string()));
+        app.mode = Mode::Sending;
+
+        // Type some text and press Enter while in Sending mode
+        app.input.insert_str("queued message");
+        let key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let action = app.handle_sending_key(key);
+        assert!(action.is_none()); // No action returned - message is queued
+        assert_eq!(app.pending_messages.len(), 1);
+        assert_eq!(app.pending_messages[0], "queued message");
+        assert!(app.input.is_empty()); // Input cleared
+    }
+
+    #[test]
+    fn test_queued_message_drains_on_done() {
+        let mut app = App::new(Some("agent-1".to_string()));
+        app.mode = Mode::Sending;
+        app.streaming = Some(StreamingMessage::default());
+        app.pending_messages.push_back("queued msg".to_string());
+
+        app.handle_response(Response::Done);
+
+        // Should stay in Sending mode and have a queued action
+        assert_eq!(app.mode, Mode::Sending);
+        assert!(app.queued_action.is_some());
+        assert!(app.pending_messages.is_empty());
     }
 
     #[test]

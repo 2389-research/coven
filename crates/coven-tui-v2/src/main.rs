@@ -292,6 +292,18 @@ async fn run_main_loop(
             // Response events from client
             Some(response) = response_rx.recv() => {
                 app.handle_response(response);
+                // Drain queued messages after response handling
+                if let Some(action) = app.take_queued_action() {
+                    if let Action::SendMessage(content) = action {
+                        if let Some(agent_id) = &app.selected_agent {
+                            if let Err(e) = client.send_message(agent_id, &content) {
+                                app.error = Some(format!("Failed to send: {}", e));
+                                app.streaming = None;
+                                app.mode = coven_tui_v2::types::Mode::Chat;
+                            }
+                        }
+                    }
+                }
             }
 
             // State change events from client

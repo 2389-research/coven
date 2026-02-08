@@ -138,16 +138,27 @@ impl Bridge {
                         return;
                     };
 
-                    // Check if this is a DM (direct room with just bot + user).
+                    // Check if this is a DM (room with just bot + user).
                     // Computed early so the allowlist check can bypass for DM commands.
-                    let is_dm = room.is_direct().await.unwrap_or(false) && {
-                        let members = room.members(RoomMemberships::ACTIVE).await;
-                        members.map(|m| m.len() == 2).unwrap_or(false)
+                    // Uses is_direct() first, falls back to member count for rooms where
+                    // the m.direct account data isn't set (common when user creates the DM).
+                    let is_command = Command::parse(&text).is_some();
+                    let is_dm = if is_command {
+                        let direct = room.is_direct().await.unwrap_or(false);
+                        if direct {
+                            true
+                        } else {
+                            // Fallback: treat 2-member rooms as DMs
+                            let members = room.members(RoomMemberships::ACTIVE).await;
+                            members.map(|m| m.len() == 2).unwrap_or(false)
+                        }
+                    } else {
+                        false
                     };
 
                     // Bypass room allowlist only for !coven commands sent via DM.
                     // Non-DM rooms still require allowlist membership even for commands.
-                    let is_dm_command = is_dm && Command::parse(&text).is_some();
+                    let is_dm_command = is_dm && is_command;
 
                     if !is_dm_command && !config.is_room_allowed(room_id.as_str()) {
                         debug!(room_id = %room_id, "Message from non-allowed room, ignoring");

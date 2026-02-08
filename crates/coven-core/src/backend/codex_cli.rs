@@ -200,7 +200,8 @@ async fn spawn_codex_process(
         args.push(session_id.to_string());
     }
 
-    // Message is always the last positional argument
+    // Separator prevents message content starting with "--" from being parsed as flags
+    args.push("--".to_string());
     args.push(text.to_string());
 
     tracing::debug!(args = ?args, cwd = %config.working_dir.display(), "Spawning Codex CLI");

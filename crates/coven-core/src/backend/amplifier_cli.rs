@@ -175,8 +175,12 @@ async fn spawn_amplifier_process(
     session_id: &str,
     text: &str,
     is_new_session: bool,
-    _mcp_endpoint: Option<&str>,
+    mcp_endpoint: Option<&str>,
 ) -> Result<Child> {
+    if mcp_endpoint.is_some() {
+        tracing::warn!("Amplifier CLI does not support MCP server configuration; gateway pack tools will not be available");
+    }
+
     let mut args = vec![
         "run".to_string(),
         "--output-format".to_string(),
@@ -191,7 +195,8 @@ async fn spawn_amplifier_process(
         args.push(session_id.to_string());
     }
 
-    // Message is always the last positional argument
+    // Separator prevents message content starting with "--" from being parsed as flags
+    args.push("--".to_string());
     args.push(text.to_string());
 
     tracing::debug!(args = ?args, cwd = %config.working_dir.display(), "Spawning Amplifier CLI");
