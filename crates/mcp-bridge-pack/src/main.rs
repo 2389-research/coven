@@ -140,12 +140,7 @@ fn parse_mcp_command(cmd_str: &str) -> Result<(String, Vec<String>)> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("mcp_bridge_pack=info".parse()?),
-        )
-        .init();
+    coven_log::init();
 
     // Read required environment variables
     let mcp_server_command = std::env::var("MCP_SERVER_COMMAND")

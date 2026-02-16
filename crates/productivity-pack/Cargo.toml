@@ -32,7 +32,7 @@ sqlx.workspace = true
 
 # Logging
 tracing.workspace = true
-tracing-subscriber.workspace = true
+coven-log.workspace = true
 
 # Error handling
 anyhow.workspace = true

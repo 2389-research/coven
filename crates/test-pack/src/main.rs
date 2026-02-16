@@ -48,12 +48,7 @@ impl ToolHandler for TestHandler {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("test_pack=info".parse()?),
-        )
-        .init();
+    coven_log::init();
 
     let config = coven_pack::PackConfig::load(PACK_NAME).map_err(|e| anyhow!("{}", e))?;
 
