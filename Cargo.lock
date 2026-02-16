@@ -1403,6 +1403,7 @@ dependencies = [
  "clap",
  "coven-client",
  "coven-link",
+ "coven-log",
  "coven-ssh",
  "crossterm",
  "dirs",
@@ -1412,7 +1413,6 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tracing",
- "tracing-subscriber",
  "tui-textarea",
 ]
 
