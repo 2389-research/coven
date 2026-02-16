@@ -86,6 +86,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mux = { git = "https://github.com/2389-research/mux-rs", branch = "main" }
 
 # Internal crates
+coven-log = { path = "crates/coven-log" }
 coven-proto = { path = "crates/coven-proto" }
 coven-ssh = { path = "crates/coven-ssh" }
 coven-grpc = { path = "crates/coven-grpc" }

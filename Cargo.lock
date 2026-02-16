@@ -1169,6 +1169,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "coven-log"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "coven-matrix-rs"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,15 @@
+# ABOUTME: Shared logging configuration for all coven binaries
+# ABOUTME: Provides init(), init_file(), and init_for() for consistent tracing setup
+
+[package]
+name = "coven-log"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared logging configuration for coven binaries"
+
+[dependencies]
+tracing.workspace = true
+tracing-subscriber.workspace = true
+dirs.workspace = true
