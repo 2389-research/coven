@@ -58,13 +58,9 @@ enum Commands {
 
     /// Open the TUI chat interface
     Chat {
-        /// Gateway server URL
+        /// Agent to start chatting with (skips picker)
         #[arg(short, long)]
-        gateway: Option<String>,
-
-        /// Theme name
-        #[arg(short, long)]
-        theme: Option<String>,
+        agent: Option<String>,
     },
 
     /// Pack management commands
@@ -376,7 +372,7 @@ async fn main() -> Result<()> {
         Commands::Link { gateway, name, key } => run_link(gateway, name, key).await,
         Commands::Swarm(cmd) => run_swarm(cmd).await,
         Commands::Agent(cmd) => run_agent(cmd).await,
-        Commands::Chat { gateway, theme } => run_chat(gateway, theme).await,
+        Commands::Chat { agent } => run_chat(agent).await,
         Commands::Pack(cmd) => run_pack(cmd).await,
         Commands::Admin(cmd) => run_admin(cmd).await,
         Commands::Bridge(cmd) => run_bridge(cmd).await,
@@ -510,22 +506,9 @@ async fn run_agent(cmd: AgentCommands) -> Result<()> {
     }
 }
 
-/// Open the TUI chat interface by exec'ing the coven-chat binary
-async fn run_chat(gateway: Option<String>, theme: Option<String>) -> Result<()> {
-    let mut cmd = std::process::Command::new("coven-chat");
-    if let Some(gw) = gateway {
-        cmd.args(["--gateway", &gw]);
-    }
-    if let Some(th) = theme {
-        cmd.args(["--theme", &th]);
-    }
-    let status = cmd
-        .status()
-        .map_err(|e| anyhow::anyhow!("Failed to launch coven-chat: {}. Is it installed?", e))?;
-    if !status.success() {
-        anyhow::bail!("coven-chat exited with status {}", status);
-    }
-    Ok(())
+/// Run the TUI chat interface in-process
+async fn run_chat(agent: Option<String>) -> Result<()> {
+    coven_tui_v2::run::run_async(agent).await
 }
 
 /// Handle admin subcommands

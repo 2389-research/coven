@@ -1033,6 +1033,7 @@ dependencies = [
  "coven-swarm",
  "coven-swarm-core",
  "coven-telegram-rs",
+ "coven-tui-v2",
  "dirs",
  "dotenvy",
  "serde",

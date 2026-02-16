@@ -4,5 +4,6 @@
 pub mod app;
 pub mod cli;
 pub mod client;
+pub mod run;
 pub mod types;
 pub mod ui;
