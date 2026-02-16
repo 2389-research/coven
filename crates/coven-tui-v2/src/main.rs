@@ -13,6 +13,7 @@ use std::io::{self, Stdout};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tracing_subscriber::EnvFilter;
 
 use coven_link::config::CovenConfig;
 use coven_tui_v2::app::{Action, App};
@@ -69,7 +70,33 @@ fn ssh_key_path() -> Result<PathBuf> {
     CovenConfig::key_path()
 }
 
+/// Initialize tracing to write to a log file instead of stdout/stderr.
+/// This prevents log output from corrupting TUI rendering.
+fn setup_logging() -> Result<()> {
+    let log_dir = CovenConfig::config_dir()?.join("tui");
+    std::fs::create_dir_all(&log_dir)
+        .with_context(|| format!("Failed to create log directory: {}", log_dir.display()))?;
+
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_dir.join("coven-chat.log"))
+        .context("Failed to open log file")?;
+
+    tracing_subscriber::fmt()
+        .with_writer(log_file)
+        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::WARN.into()))
+        .with_ansi(false)
+        .init();
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
+    if let Err(e) = setup_logging() {
+        eprintln!("Warning: failed to set up logging: {e}");
+    }
+
     let args = Args::parse();
 
     // Handle subcommands (these don't need the TUI)
