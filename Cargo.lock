@@ -1185,6 +1185,7 @@ dependencies = [
  "clap",
  "coven-grpc",
  "coven-link",
+ "coven-log",
  "coven-proto",
  "crossterm",
  "dialoguer",
@@ -1201,7 +1202,6 @@ dependencies = [
  "toml 0.8.23",
  "tonic",
  "tracing",
- "tracing-subscriber",
  "uuid",
 ]
 
@@ -1264,6 +1264,7 @@ dependencies = [
  "anyhow",
  "clap",
  "coven-grpc",
+ "coven-log",
  "coven-proto",
  "dirs",
  "futures",
@@ -1277,7 +1278,6 @@ dependencies = [
  "toml 0.8.23",
  "tonic",
  "tracing",
- "tracing-subscriber",
  "uuid",
 ]
 
@@ -1377,6 +1377,7 @@ dependencies = [
  "anyhow",
  "clap",
  "coven-grpc",
+ "coven-log",
  "coven-proto",
  "dirs",
  "futures",
@@ -1390,7 +1391,6 @@ dependencies = [
  "toml 0.8.23",
  "tonic",
  "tracing",
- "tracing-subscriber",
  "uuid",
 ]
 

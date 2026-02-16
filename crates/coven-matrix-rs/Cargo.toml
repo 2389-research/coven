@@ -39,7 +39,7 @@ dirs.workspace = true
 
 # Logging and errors
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+coven-log.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 

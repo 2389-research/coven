@@ -27,12 +27,7 @@ async fn main() -> Result<()> {
     }
 
     // Initialize logging for normal operation
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("coven_matrix_rs=info".parse()?),
-        )
-        .init();
+    coven_log::init_for("coven_matrix_rs");
 
     coven_matrix_rs::run(cli.config).await
 }

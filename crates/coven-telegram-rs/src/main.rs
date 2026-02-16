@@ -15,12 +15,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("coven_telegram_rs=info".parse()?),
-        )
-        .init();
+    coven_log::init_for("coven_telegram_rs");
 
     let cli = Cli::parse();
     coven_telegram_rs::run(cli.config).await
