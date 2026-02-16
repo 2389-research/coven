@@ -52,7 +52,7 @@ thiserror.workspace = true
 
 # Logging
 tracing.workspace = true
-tracing-subscriber.workspace = true
+coven-log.workspace = true
 
 # Time
 chrono.workspace = true

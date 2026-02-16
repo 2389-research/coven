@@ -164,6 +164,8 @@ async fn main() -> Result<()> {
     // Load .env file if present (ignore errors if not found)
     let _ = dotenvy::dotenv();
 
+    coven_log::init();
+
     let cli = Cli::parse();
 
     match cli.command {

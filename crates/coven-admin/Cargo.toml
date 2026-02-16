@@ -43,7 +43,7 @@ thiserror.workspace = true
 
 # Logging
 tracing.workspace = true
-tracing-subscriber.workspace = true
+coven-log.workspace = true
 
 # Filesystem/Environment
 dirs.workspace = true

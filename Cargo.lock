@@ -965,6 +965,7 @@ dependencies = [
  "clap",
  "colored",
  "coven-grpc",
+ "coven-log",
  "coven-proto",
  "dirs",
  "dotenvy",
@@ -977,7 +978,6 @@ dependencies = [
  "toml 0.8.23",
  "tonic",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -991,6 +991,7 @@ dependencies = [
  "coven-connect",
  "coven-core",
  "coven-link",
+ "coven-log",
  "coven-proto",
  "coven-ssh",
  "crossterm",
@@ -1010,7 +1011,6 @@ dependencies = [
  "toml 0.8.23",
  "tonic",
  "tracing",
- "tracing-subscriber",
  "url",
  "uuid",
 ]
@@ -1025,6 +1025,7 @@ dependencies = [
  "coven-agent",
  "coven-client",
  "coven-link",
+ "coven-log",
  "coven-matrix-rs",
  "coven-pack",
  "coven-serve",
@@ -1039,7 +1040,6 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1155,6 +1155,7 @@ dependencies = [
  "anyhow",
  "clap",
  "colored",
+ "coven-log",
  "coven-ssh",
  "dirs",
  "hostname 0.3.1",
@@ -1165,7 +1166,6 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1307,6 +1307,7 @@ dependencies = [
  "clap",
  "coven-core",
  "coven-link",
+ "coven-log",
  "coven-proto",
  "coven-ssh",
  "coven-swarm-backend",
@@ -1329,7 +1330,6 @@ dependencies = [
  "toml 0.8.23",
  "tonic",
  "tracing",
- "tracing-subscriber",
  "url",
  "uuid",
 ]
