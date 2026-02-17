@@ -24,6 +24,7 @@ coven-ssh.workspace = true
 # TUI
 ratatui.workspace = true
 crossterm.workspace = true
+tui-textarea.workspace = true
 
 # Async
 tokio.workspace = true

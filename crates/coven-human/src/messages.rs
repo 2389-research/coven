@@ -63,6 +63,13 @@ pub enum TerminalEvent {
     Redraw,
 }
 
+/// Whether a message is incoming from an agent or outgoing from the human
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageDirection {
+    Incoming,
+    Outgoing,
+}
+
 /// Message data structure
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -76,6 +83,8 @@ pub struct Message {
     pub content: String,
     /// When the message was created
     pub timestamp: DateTime<Utc>,
+    /// Whether this message is incoming or outgoing
+    pub direction: MessageDirection,
 }
 
 impl Message {
@@ -86,6 +95,7 @@ impl Message {
         sender: String,
         content: String,
         timestamp: DateTime<Utc>,
+        direction: MessageDirection,
     ) -> Self {
         Self {
             id,
@@ -93,6 +103,19 @@ impl Message {
             sender,
             content,
             timestamp,
+            direction,
+        }
+    }
+
+    /// Create an outgoing message from the human user
+    pub fn outgoing(content: String) -> Self {
+        Self {
+            id: String::new(),
+            thread_id: String::new(),
+            sender: "you".to_string(),
+            content,
+            timestamp: Utc::now(),
+            direction: MessageDirection::Outgoing,
         }
     }
 
@@ -103,37 +126,25 @@ impl Message {
 
     /// Format message for display in the UI
     pub fn format_display(&self) -> String {
-        format!(
-            "[{}] Message from thread-{}:\n{}",
-            self.format_timestamp(),
-            self.thread_id,
-            self.content
-        )
+        match self.direction {
+            MessageDirection::Incoming => {
+                format!(
+                    "[{}] {} > {}",
+                    self.format_timestamp(),
+                    self.sender,
+                    self.content,
+                )
+            }
+            MessageDirection::Outgoing => {
+                format!("[{}] you: {}", self.format_timestamp(), self.content,)
+            }
+        }
     }
 }
 
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.format_display())
-    }
-}
-
-/// Input mode for the TUI
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum InputMode {
-    /// Viewing messages (readonly)
-    #[default]
-    Viewing,
-    /// Composing a reply (editing)
-    Composing,
-}
-
-impl fmt::Display for InputMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Viewing => write!(f, "viewing"),
-            Self::Composing => write!(f, "composing"),
-        }
     }
 }
 
@@ -150,6 +161,7 @@ mod tests {
             "agent-789".to_string(),
             "Hello, world!".to_string(),
             timestamp,
+            MessageDirection::Incoming,
         );
 
         assert_eq!(msg.id, "msg-123");
@@ -157,6 +169,23 @@ mod tests {
         assert_eq!(msg.sender, "agent-789");
         assert_eq!(msg.content, "Hello, world!");
         assert_eq!(msg.timestamp, timestamp);
+        assert_eq!(msg.direction, MessageDirection::Incoming);
+    }
+
+    #[test]
+    fn test_message_direction() {
+        assert_ne!(MessageDirection::Incoming, MessageDirection::Outgoing);
+        assert_eq!(MessageDirection::Incoming, MessageDirection::Incoming);
+        assert_eq!(MessageDirection::Outgoing, MessageDirection::Outgoing);
+    }
+
+    #[test]
+    fn test_message_outgoing() {
+        let msg = Message::outgoing("Deploy to staging".to_string());
+        assert_eq!(msg.sender, "you");
+        assert_eq!(msg.content, "Deploy to staging");
+        assert_eq!(msg.direction, MessageDirection::Outgoing);
+        assert!(msg.id.is_empty());
     }
 
     #[test]
@@ -170,28 +199,38 @@ mod tests {
             "sender-1".to_string(),
             "Test".to_string(),
             timestamp,
+            MessageDirection::Incoming,
         );
 
         assert_eq!(msg.format_timestamp(), "2026-02-05 10:23:45");
     }
 
     #[test]
-    fn test_message_format_display() {
+    fn test_message_format_display_incoming() {
         let timestamp = DateTime::parse_from_rfc3339("2026-02-05T10:23:45Z")
             .unwrap()
             .with_timezone(&Utc);
         let msg = Message::new(
             "msg-1".to_string(),
             "thread-xyz".to_string(),
-            "sender-1".to_string(),
+            "agent-x".to_string(),
             "Can you check the deployment?".to_string(),
             timestamp,
+            MessageDirection::Incoming,
         );
 
         let display = msg.format_display();
         assert!(display.contains("[2026-02-05 10:23:45]"));
-        assert!(display.contains("thread-xyz"));
+        assert!(display.contains("agent-x"));
         assert!(display.contains("Can you check the deployment?"));
+    }
+
+    #[test]
+    fn test_message_format_display_outgoing() {
+        let msg = Message::outgoing("Deploy to staging".to_string());
+        let display = msg.format_display();
+        assert!(display.contains("you:"));
+        assert!(display.contains("Deploy to staging"));
     }
 
     #[test]
@@ -203,30 +242,11 @@ mod tests {
             "sender-1".to_string(),
             "Test message".to_string(),
             timestamp,
+            MessageDirection::Incoming,
         );
 
         let display_str = format!("{}", msg);
         assert!(display_str.contains("Test message"));
-        assert!(display_str.contains("thread-1"));
-    }
-
-    #[test]
-    fn test_input_mode_default() {
-        let mode: InputMode = Default::default();
-        assert_eq!(mode, InputMode::Viewing);
-    }
-
-    #[test]
-    fn test_input_mode_display() {
-        assert_eq!(format!("{}", InputMode::Viewing), "viewing");
-        assert_eq!(format!("{}", InputMode::Composing), "composing");
-    }
-
-    #[test]
-    fn test_input_mode_equality() {
-        assert_eq!(InputMode::Viewing, InputMode::Viewing);
-        assert_eq!(InputMode::Composing, InputMode::Composing);
-        assert_ne!(InputMode::Viewing, InputMode::Composing);
     }
 
     #[test]
@@ -263,6 +283,7 @@ mod tests {
             "sender-1".to_string(),
             "content".to_string(),
             timestamp,
+            MessageDirection::Incoming,
         );
         let msg_event = AppEvent::IncomingMessage(IncomingMessageEvent { message: msg });
         assert!(matches!(msg_event, AppEvent::IncomingMessage(_)));

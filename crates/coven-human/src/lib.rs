@@ -5,8 +5,8 @@ mod app;
 mod messages;
 mod ui;
 
-pub use app::App;
-pub use messages::{AppEvent, ConnectionEvent, IncomingMessageEvent, InputMode, Message};
+pub use app::{Action, App};
+pub use messages::{AppEvent, ConnectionEvent, IncomingMessageEvent, Message, MessageDirection};
 
 /// Configuration for the human agent TUI
 #[derive(Debug, Clone)]

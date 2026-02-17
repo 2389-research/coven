@@ -1,7 +1,7 @@
 // ABOUTME: Main application state and logic for the human agent TUI.
 // ABOUTME: Manages the connection to coven gateway and handles user interactions.
 
-use crate::messages::{InputMode, Message};
+use crate::messages::{Message, MessageDirection};
 use crate::ui;
 use crate::HumanConfig;
 use anyhow::{Context, Result};
@@ -17,15 +17,30 @@ use crossterm::terminal::{
 };
 use futures::StreamExt;
 use ratatui::prelude::*;
+use ratatui::style::{Color, Style};
 use std::io::{self, Stdout};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tonic::transport::Channel;
+use tui_textarea::TextArea;
+
+/// Actions that need async handling (returned from handle_key)
+pub enum Action {
+    Quit,
+    SendReply,
+}
+
+/// Create a TextArea with black background styling (matches coven-tui-v2)
+fn styled_textarea() -> TextArea<'static> {
+    let mut ta = TextArea::default();
+    let bg = Style::default().bg(Color::Rgb(0, 0, 0));
+    ta.set_style(bg);
+    ta.set_cursor_line_style(bg);
+    ta
+}
 
 /// Application state for the human agent TUI
 pub struct App {
-    /// Current input mode
-    pub mode: InputMode,
     /// Connection status
     pub connected: bool,
     /// Agent ID (assigned after registration)
@@ -34,117 +49,110 @@ pub struct App {
     pub server_id: String,
     /// Messages received from gateway
     pub messages: Vec<Message>,
-    /// Current compose buffer
-    pub input: String,
-    /// Scroll offset for message viewport
-    pub scroll: u16,
+    /// Always-active text input area
+    pub input: TextArea<'static>,
+    /// Scroll offset for chat viewport (0 = bottom)
+    pub scroll_offset: usize,
     /// Status bar message
     pub status: String,
     /// Whether app should quit
     pub should_quit: bool,
-    /// Request ID of the message being replied to
-    pub reply_to_request_id: Option<String>,
-    /// Thread ID of the message being replied to
-    pub reply_to_thread_id: Option<String>,
+    /// Request ID of the active (most recent) incoming message
+    pub active_request_id: Option<String>,
+    /// Thread ID of the active incoming message
+    pub active_thread_id: Option<String>,
 }
 
 impl App {
     /// Create a new App with default state
     pub fn new(agent_id: String) -> Self {
         Self {
-            mode: InputMode::Viewing,
             connected: false,
             agent_id,
             server_id: String::new(),
             messages: Vec::new(),
-            input: String::new(),
-            scroll: 0,
+            input: styled_textarea(),
+            scroll_offset: 0,
             status: "Connecting...".to_string(),
             should_quit: false,
-            reply_to_request_id: None,
-            reply_to_thread_id: None,
+            active_request_id: None,
+            active_thread_id: None,
         }
-    }
-
-    /// Enter composing mode (if there's a message to reply to)
-    pub fn enter_compose(&mut self) {
-        if self.reply_to_request_id.is_some() {
-            self.mode = InputMode::Composing;
-            self.status = "Composing reply... (Enter to send, Esc to cancel)".to_string();
-        } else {
-            self.status = "No message to reply to".to_string();
-        }
-    }
-
-    /// Cancel composing and return to viewing mode
-    pub fn cancel_compose(&mut self) {
-        self.mode = InputMode::Viewing;
-        self.input.clear();
-        self.status = "Cancelled".to_string();
     }
 
     /// Add a received message and set it as the reply target
     pub fn add_message(&mut self, msg: Message) {
-        self.reply_to_request_id = Some(msg.id.clone());
-        self.reply_to_thread_id = Some(msg.thread_id.clone());
+        self.active_request_id = Some(msg.id.clone());
+        self.active_thread_id = Some(msg.thread_id.clone());
         self.messages.push(msg);
-        self.status = "New message received — press 'r' to reply".to_string();
+        self.scroll_offset = 0;
+        self.status = "New message received".to_string();
     }
 
-    /// Take the composed reply text and clear the buffer
+    /// Handle a key event, returning an action if one should be taken
+    pub fn handle_key(&mut self, key: KeyEvent) -> Option<Action> {
+        // Ctrl+C always quits
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            return Some(Action::Quit);
+        }
+
+        // 'q' quits only when input is empty
+        if key.code == KeyCode::Char('q') && self.input_is_empty() {
+            return Some(Action::Quit);
+        }
+
+        // Enter (no Shift) sends reply when there's an active request and non-empty input.
+        // Without an active request, Enter falls through to textarea as newline.
+        if key.code == KeyCode::Enter
+            && !key.modifiers.contains(KeyModifiers::SHIFT)
+            && self.active_request_id.is_some()
+            && !self.input_is_empty()
+        {
+            return Some(Action::SendReply);
+        }
+
+        // PgUp/PgDn for scrolling chat
+        match key.code {
+            KeyCode::PageUp => {
+                self.scroll_offset = self.scroll_offset.saturating_add(10);
+                return None;
+            }
+            KeyCode::PageDown => {
+                self.scroll_offset = self.scroll_offset.saturating_sub(10);
+                return None;
+            }
+            _ => {}
+        }
+
+        // Everything else goes to the textarea
+        self.input.input(key);
+        None
+    }
+
+    /// Take the composed reply text, record outgoing message, and reset input
     pub fn take_reply(&mut self) -> Option<(String, String, String)> {
-        if self.input.is_empty() {
+        let text = self.input.lines().join("\n").trim().to_string();
+        if text.is_empty() {
             return None;
         }
-        let request_id = self.reply_to_request_id.clone()?;
-        let thread_id = self.reply_to_thread_id.clone().unwrap_or_default();
-        let text = std::mem::take(&mut self.input);
-        self.mode = InputMode::Viewing;
-        self.reply_to_request_id = None;
-        self.reply_to_thread_id = None;
+        let request_id = self.active_request_id.clone()?;
+        let thread_id = self.active_thread_id.clone().unwrap_or_default();
+
+        // Record the outgoing message in the chat history
+        self.messages.push(Message::outgoing(text.clone()));
+
+        // Reset input and state
+        self.input = styled_textarea();
+        self.scroll_offset = 0;
+        self.active_request_id = None;
+        self.active_thread_id = None;
         self.status = "Reply sent".to_string();
         Some((request_id, thread_id, text))
     }
 
-    /// Handle a key event, returning true if the app should continue
-    pub fn handle_key(&mut self, key: KeyEvent) {
-        match self.mode {
-            InputMode::Viewing => self.handle_viewing_key(key),
-            InputMode::Composing => self.handle_composing_key(key),
-        }
-    }
-
-    fn handle_viewing_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Char('q') => self.should_quit = true,
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.should_quit = true;
-            }
-            KeyCode::Char('r') => self.enter_compose(),
-            KeyCode::Up | KeyCode::Char('k') => {
-                self.scroll = self.scroll.saturating_sub(1);
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                self.scroll = self.scroll.saturating_add(1);
-            }
-            _ => {}
-        }
-    }
-
-    fn handle_composing_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc => self.cancel_compose(),
-            KeyCode::Enter => {
-                // Reply will be taken by the event loop
-            }
-            KeyCode::Backspace => {
-                self.input.pop();
-            }
-            KeyCode::Char(c) => {
-                self.input.push(c);
-            }
-            _ => {}
-        }
+    /// Check if the textarea input is empty
+    fn input_is_empty(&self) -> bool {
+        self.input.lines().join("").trim().is_empty()
     }
 }
 
@@ -343,40 +351,41 @@ async fn run_main_loop(
         tokio::select! {
             // Keyboard input
             Some(key) = key_rx.recv() => {
-                // Check if Enter was pressed in compose mode (send reply)
-                let was_composing = app.mode == InputMode::Composing;
-                let was_enter = key.code == KeyCode::Enter;
-
-                app.handle_key(key);
-
-                if was_composing && was_enter {
-                    if let Some((request_id, _thread_id, text)) = app.take_reply() {
-                        // Send Text event
-                        let text_clone = text.clone();
-                        tx.send(AgentMessage {
-                            payload: Some(agent_message::Payload::Response(
-                                coven_proto::MessageResponse {
-                                    request_id: request_id.clone(),
-                                    event: Some(message_response::Event::Text(text_clone)),
-                                },
-                            )),
-                        })
-                        .await?;
-
-                        // Send Done event
-                        tx.send(AgentMessage {
-                            payload: Some(agent_message::Payload::Response(
-                                coven_proto::MessageResponse {
-                                    request_id,
-                                    event: Some(message_response::Event::Done(
-                                        coven_proto::Done {
-                                            full_response: text,
+                if let Some(action) = app.handle_key(key) {
+                    match action {
+                        Action::Quit => {
+                            app.should_quit = true;
+                        }
+                        Action::SendReply => {
+                            if let Some((request_id, _thread_id, text)) = app.take_reply() {
+                                // Send Text event
+                                let text_clone = text.clone();
+                                tx.send(AgentMessage {
+                                    payload: Some(agent_message::Payload::Response(
+                                        coven_proto::MessageResponse {
+                                            request_id: request_id.clone(),
+                                            event: Some(message_response::Event::Text(text_clone)),
                                         },
                                     )),
-                                },
-                            )),
-                        })
-                        .await?;
+                                })
+                                .await?;
+
+                                // Send Done event
+                                tx.send(AgentMessage {
+                                    payload: Some(agent_message::Payload::Response(
+                                        coven_proto::MessageResponse {
+                                            request_id,
+                                            event: Some(message_response::Event::Done(
+                                                coven_proto::Done {
+                                                    full_response: text,
+                                                },
+                                            )),
+                                        },
+                                    )),
+                                })
+                                .await?;
+                            }
+                        }
                     }
                 }
             }
@@ -394,6 +403,7 @@ async fn run_main_loop(
                                         send_msg.sender,
                                         send_msg.content,
                                         Utc::now(),
+                                        MessageDirection::Incoming,
                                     );
                                     app.add_message(message);
                                 }
@@ -478,54 +488,12 @@ mod tests {
     #[test]
     fn test_app_initial_state() {
         let app = App::new("test-agent".to_string());
-        assert_eq!(app.mode, InputMode::Viewing);
         assert!(!app.connected);
         assert_eq!(app.agent_id, "test-agent");
         assert!(app.messages.is_empty());
         assert!(app.input.is_empty());
         assert!(!app.should_quit);
-        assert!(app.reply_to_request_id.is_none());
-    }
-
-    #[test]
-    fn test_enter_compose_without_message() {
-        let mut app = App::new("test".to_string());
-        app.enter_compose();
-        // Should stay in viewing mode since no message to reply to
-        assert_eq!(app.mode, InputMode::Viewing);
-    }
-
-    #[test]
-    fn test_enter_compose_with_message() {
-        let mut app = App::new("test".to_string());
-        let msg = Message::new(
-            "req-1".to_string(),
-            "thread-1".to_string(),
-            "sender".to_string(),
-            "Hello".to_string(),
-            Utc::now(),
-        );
-        app.add_message(msg);
-        app.enter_compose();
-        assert_eq!(app.mode, InputMode::Composing);
-    }
-
-    #[test]
-    fn test_cancel_compose() {
-        let mut app = App::new("test".to_string());
-        let msg = Message::new(
-            "req-1".to_string(),
-            "thread-1".to_string(),
-            "sender".to_string(),
-            "Hello".to_string(),
-            Utc::now(),
-        );
-        app.add_message(msg);
-        app.enter_compose();
-        app.input = "draft reply".to_string();
-        app.cancel_compose();
-        assert_eq!(app.mode, InputMode::Viewing);
-        assert!(app.input.is_empty());
+        assert!(app.active_request_id.is_none());
     }
 
     #[test]
@@ -539,11 +507,13 @@ mod tests {
             "sender".to_string(),
             "Hello".to_string(),
             Utc::now(),
+            MessageDirection::Incoming,
         );
         app.add_message(msg);
         assert_eq!(app.messages.len(), 1);
-        assert_eq!(app.reply_to_request_id.as_deref(), Some("req-1"));
-        assert_eq!(app.reply_to_thread_id.as_deref(), Some("thread-1"));
+        assert_eq!(app.active_request_id.as_deref(), Some("req-1"));
+        assert_eq!(app.active_thread_id.as_deref(), Some("thread-1"));
+        assert_eq!(app.scroll_offset, 0);
     }
 
     #[test]
@@ -561,10 +531,10 @@ mod tests {
             "sender".to_string(),
             "Hello".to_string(),
             Utc::now(),
+            MessageDirection::Incoming,
         );
         app.add_message(msg);
-        app.enter_compose();
-        app.input = "My reply".to_string();
+        app.input.insert_str("My reply");
 
         let reply = app.take_reply();
         assert!(reply.is_some());
@@ -572,40 +542,62 @@ mod tests {
         assert_eq!(request_id, "req-1");
         assert_eq!(thread_id, "thread-1");
         assert_eq!(text, "My reply");
-        assert_eq!(app.mode, InputMode::Viewing);
         assert!(app.input.is_empty());
-        assert!(app.reply_to_request_id.is_none());
+        assert!(app.active_request_id.is_none());
     }
 
     #[test]
     fn test_handle_quit_key() {
         let mut app = App::new("test".to_string());
-        app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
-        assert!(app.should_quit);
+        // 'q' with empty input should quit
+        let action = app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        assert!(matches!(action, Some(Action::Quit)));
+    }
+
+    #[test]
+    fn test_q_doesnt_quit_with_input() {
+        let mut app = App::new("test".to_string());
+        // Type something first
+        app.input.insert_str("hello");
+        // Now 'q' should type 'q', not quit
+        let action = app.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        assert!(action.is_none());
+        // Verify 'q' was typed into textarea
+        let content = app.input.lines().join("");
+        assert!(content.contains('q'));
     }
 
     #[test]
     fn test_handle_ctrl_c() {
         let mut app = App::new("test".to_string());
-        app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
-        assert!(app.should_quit);
+        let action = app.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        assert!(matches!(action, Some(Action::Quit)));
     }
 
     #[test]
     fn test_handle_scroll() {
         let mut app = App::new("test".to_string());
-        assert_eq!(app.scroll, 0);
-        app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-        assert_eq!(app.scroll, 1);
-        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
-        assert_eq!(app.scroll, 0);
+        assert_eq!(app.scroll_offset, 0);
+        app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+        assert_eq!(app.scroll_offset, 10);
+        app.handle_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+        assert_eq!(app.scroll_offset, 0);
         // Should not underflow
-        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
-        assert_eq!(app.scroll, 0);
+        app.handle_key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+        assert_eq!(app.scroll_offset, 0);
     }
 
     #[test]
-    fn test_compose_typing() {
+    fn test_typing() {
+        let mut app = App::new("test".to_string());
+        app.handle_key(KeyEvent::new(KeyCode::Char('H'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+        let content = app.input.lines().join("");
+        assert_eq!(content, "Hi");
+    }
+
+    #[test]
+    fn test_enter_sends_with_active_request() {
         let mut app = App::new("test".to_string());
         let msg = Message::new(
             "req-1".to_string(),
@@ -613,16 +605,47 @@ mod tests {
             "sender".to_string(),
             "Hello".to_string(),
             Utc::now(),
+            MessageDirection::Incoming,
         );
         app.add_message(msg);
-        app.enter_compose();
+        app.input.insert_str("My reply");
 
-        app.handle_key(KeyEvent::new(KeyCode::Char('H'), KeyModifiers::NONE));
-        app.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
-        assert_eq!(app.input, "Hi");
+        let action = app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert!(matches!(action, Some(Action::SendReply)));
+    }
 
-        app.handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
-        assert_eq!(app.input, "H");
+    #[test]
+    fn test_enter_is_newline_without_request() {
+        let mut app = App::new("test".to_string());
+        app.input.insert_str("some text");
+
+        // Enter without an active request should pass through to textarea (newline)
+        let action = app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert!(action.is_none());
+    }
+
+    #[test]
+    fn test_outgoing_message_recorded() {
+        let mut app = App::new("test".to_string());
+        let msg = Message::new(
+            "req-1".to_string(),
+            "thread-1".to_string(),
+            "sender".to_string(),
+            "Hello".to_string(),
+            Utc::now(),
+            MessageDirection::Incoming,
+        );
+        app.add_message(msg);
+        app.input.insert_str("My reply");
+
+        let reply = app.take_reply();
+        assert!(reply.is_some());
+
+        // Should now have 2 messages: incoming + outgoing
+        assert_eq!(app.messages.len(), 2);
+        assert_eq!(app.messages[1].direction, MessageDirection::Outgoing);
+        assert_eq!(app.messages[1].content, "My reply");
+        assert_eq!(app.messages[1].sender, "you");
     }
 
     #[test]

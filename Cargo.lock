@@ -1154,6 +1154,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tracing",
+ "tui-textarea",
  "uuid",
 ]
 

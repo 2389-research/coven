@@ -1,128 +1,158 @@
 // ABOUTME: User interface rendering for the human agent TUI.
-// ABOUTME: Handles drawing the terminal UI with ratatui.
+// ABOUTME: Three-row chat layout: chat history | always-visible input | status bar.
 
 use crate::app::App;
-use crate::messages::InputMode;
+use crate::messages::MessageDirection;
+use chrono::Local;
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
-/// Render the full TUI frame
+/// Render the full TUI frame with 3-row layout: chat | input | status
 pub fn render(frame: &mut Frame, app: &App) {
-    // Layout: header (3 lines) | messages (flex) | compose (if composing, 5 lines) | status (1 line)
-    let chunks = if app.mode == InputMode::Composing {
-        Layout::vertical([
-            Constraint::Length(3), // header
-            Constraint::Min(5),    // messages
-            Constraint::Length(5), // compose area
-            Constraint::Length(1), // status bar
-        ])
-        .split(frame.area())
-    } else {
-        Layout::vertical([
-            Constraint::Length(3), // header
-            Constraint::Min(5),    // messages
-            Constraint::Length(1), // status bar
-        ])
-        .split(frame.area())
-    };
+    let chunks = Layout::vertical([
+        Constraint::Min(1),    // chat area
+        Constraint::Length(4), // input area (always visible)
+        Constraint::Length(1), // status bar
+    ])
+    .split(frame.area());
 
-    render_header(frame, app, chunks[0]);
-    render_messages(frame, app, chunks[1]);
-
-    if app.mode == InputMode::Composing {
-        render_compose(frame, app, chunks[2]);
-        render_status(frame, app, chunks[3]);
-    } else {
-        render_status(frame, app, chunks[2]);
-    }
+    render_chat(frame, app, chunks[0]);
+    render_input(frame, app, chunks[1]);
+    render_status(frame, app, chunks[2]);
 }
 
-/// Render the header bar with connection status and agent info
-fn render_header(frame: &mut Frame, app: &App, area: Rect) {
+/// Render the chat area with connection info and message history
+fn render_chat(frame: &mut Frame, app: &App, area: Rect) {
+    let mut lines: Vec<Line> = vec![];
+
+    // Connection info as first line
     let status_icon = if app.connected { "●" } else { "○" };
     let connection_status = if app.connected {
         "Connected"
     } else {
         "Disconnected"
     };
-
-    let header_text = format!(
-        " {} {} | Agent: {} | Server: {}",
-        status_icon,
-        connection_status,
-        app.agent_id,
-        if app.server_id.is_empty() {
-            "---"
-        } else {
-            &app.server_id
-        }
-    );
-
-    let header = Paragraph::new(header_text).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" coven human "),
-    );
-    frame.render_widget(header, area);
-}
-
-/// Render the scrollable message viewport
-fn render_messages(frame: &mut Frame, app: &App, area: Rect) {
-    let items: Vec<ListItem> = app
-        .messages
-        .iter()
-        .map(|msg| {
-            let content = format!(
-                "[{}] From {}: {}",
-                msg.format_timestamp(),
-                msg.sender,
-                msg.content
-            );
-            ListItem::new(content)
-        })
-        .collect();
-
-    let messages = if items.is_empty() {
-        List::new(vec![ListItem::new("  Waiting for messages...")])
+    let server_display = if app.server_id.is_empty() {
+        "---"
     } else {
-        List::new(items)
+        &app.server_id
     };
 
-    let messages = messages.block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(format!(" Messages ({}) ", app.messages.len())),
-    );
+    lines.push(Line::from(vec![
+        Span::styled(
+            format!("{} ", status_icon),
+            if app.connected {
+                Style::default().fg(Color::Green)
+            } else {
+                Style::default().fg(Color::Red)
+            },
+        ),
+        Span::styled(
+            format!(
+                "{} | {} | {}",
+                connection_status, app.agent_id, server_display
+            ),
+            Style::default().dim(),
+        ),
+    ]));
+    lines.push(Line::from(""));
 
-    frame.render_widget(messages, area);
+    // Messages
+    if app.messages.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  Waiting for messages...",
+            Style::default().dim(),
+        )));
+    } else {
+        for msg in &app.messages {
+            let time = msg
+                .timestamp
+                .with_timezone(&Local)
+                .format("%H:%M")
+                .to_string();
+
+            match msg.direction {
+                MessageDirection::Incoming => {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} ", time), Style::default().dim()),
+                        Span::styled(
+                            format!("{}: ", msg.sender),
+                            Style::default().fg(Color::Cyan),
+                        ),
+                        Span::raw(&msg.content),
+                    ]));
+                }
+                MessageDirection::Outgoing => {
+                    let bg = Style::default().bg(Color::Rgb(40, 40, 40));
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{} ", time), bg.dim()),
+                        Span::styled("you: ", bg.bold()),
+                        Span::styled(&msg.content, bg),
+                    ]));
+                }
+            }
+        }
+    }
+
+    // Auto-scroll: scroll_offset=0 means bottom, higher values scroll up
+    let total_lines = lines.len() as u16;
+    let visible_lines = area.height;
+    let max_scroll = total_lines.saturating_sub(visible_lines);
+    let actual_scroll = max_scroll.saturating_sub(app.scroll_offset as u16);
+
+    let para = Paragraph::new(lines).scroll((actual_scroll, 0));
+    frame.render_widget(para, area);
 }
 
-/// Render the compose area for typing replies
-fn render_compose(frame: &mut Frame, app: &App, area: Rect) {
-    let input = Paragraph::new(app.input.as_str())
-        .wrap(Wrap { trim: false })
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Reply (Enter to send, Esc to cancel) "),
-        );
-    frame.render_widget(input, area);
+/// Render the always-visible input area with TextArea widget
+fn render_input(frame: &mut Frame, app: &App, area: Rect) {
+    let (title, title_style) = if app.active_request_id.is_some() {
+        (
+            " Reply (Enter to send) ",
+            Style::default().fg(Color::Green).bg(Color::Rgb(0, 0, 0)),
+        )
+    } else {
+        (
+            " Waiting for request... ",
+            Style::default().fg(Color::Yellow).bg(Color::Rgb(0, 0, 0)),
+        )
+    };
 
-    // Position cursor at end of input
-    let cursor_x = area.x + 1 + app.input.len() as u16;
-    let cursor_y = area.y + 1;
-    frame.set_cursor_position(Position::new(cursor_x.min(area.right() - 2), cursor_y));
+    let block = Block::default()
+        .borders(Borders::TOP | Borders::BOTTOM)
+        .border_style(Style::default().fg(Color::DarkGray).bg(Color::Rgb(0, 0, 0)))
+        .style(Style::default().bg(Color::Rgb(0, 0, 0)))
+        .title(title)
+        .title_style(title_style);
+
+    // Clear the area so background fills completely
+    frame.render_widget(Clear, area);
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    // Render the TextArea widget
+    frame.render_widget(&app.input, inner);
 }
 
-/// Render the status bar
+/// Render the status bar with connection dot, status message, and keybinds
 fn render_status(frame: &mut Frame, app: &App, area: Rect) {
-    let mode_str = match app.mode {
-        InputMode::Viewing => "[VIEW] q:quit  r:reply  j/k:scroll",
-        InputMode::Composing => "[COMPOSE] Enter:send  Esc:cancel",
+    let dot = if app.connected { "●" } else { "○" };
+    let dot_style = if app.connected {
+        Style::default().fg(Color::Green)
+    } else {
+        Style::default().fg(Color::Red)
     };
 
-    let status_text = format!("{} | {}", mode_str, app.status);
-    let status =
-        Paragraph::new(status_text).style(Style::default().bg(Color::DarkGray).fg(Color::White));
+    let status_line = Line::from(vec![
+        Span::styled(format!("{} ", dot), dot_style),
+        Span::styled(&app.status, Style::default().fg(Color::White)),
+        Span::styled(
+            " | q:quit  PgUp/PgDn:scroll",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]);
+
+    let status = Paragraph::new(status_line).style(Style::default().bg(Color::Rgb(30, 30, 30)));
     frame.render_widget(status, area);
 }
