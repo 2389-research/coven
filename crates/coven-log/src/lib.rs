@@ -6,9 +6,9 @@ use tracing_subscriber::EnvFilter;
 /// Standard logging to stderr. Default: INFO level, RUST_LOG override.
 /// Used by CLI and daemon binaries.
 pub fn init() {
-    tracing_subscriber::fmt()
+    let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
-        .init();
+        .try_init();
 }
 
 /// File-based logging for TUI apps. Default: WARN level, RUST_LOG override.
@@ -34,7 +34,8 @@ fn init_file_inner(app_name: &str) -> Result<(), Box<dyn std::error::Error>> {
         .with_writer(log_file)
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::WARN.into()))
         .with_ansi(false)
-        .init();
+        .try_init()
+        .map_err(|e| format!("tracing already initialized: {e}"))?;
 
     Ok(())
 }
@@ -51,7 +52,7 @@ pub fn init_for(crate_name: &str) {
                 .unwrap_or_else(|_| tracing::Level::INFO.into()),
         );
 
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
 #[cfg(test)]
