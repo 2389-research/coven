@@ -63,6 +63,21 @@ enum Commands {
         agent: Option<String>,
     },
 
+    /// Act as a human agent in the coven gateway
+    Human {
+        /// Gateway server URL
+        #[arg(short, long)]
+        gateway: Option<String>,
+
+        /// Agent name (defaults to hostname)
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// Agent ID (auto-generated if not provided)
+        #[arg(long)]
+        id: Option<String>,
+    },
+
     /// Pack management commands
     #[command(subcommand)]
     Pack(PackCommands),
@@ -373,6 +388,7 @@ async fn main() -> Result<()> {
         Commands::Swarm(cmd) => run_swarm(cmd).await,
         Commands::Agent(cmd) => run_agent(cmd).await,
         Commands::Chat { agent } => run_chat(agent).await,
+        Commands::Human { gateway, name, id } => run_human(gateway, name, id).await,
         Commands::Pack(cmd) => run_pack(cmd).await,
         Commands::Admin(cmd) => run_admin(cmd).await,
         Commands::Bridge(cmd) => run_bridge(cmd).await,
@@ -509,6 +525,16 @@ async fn run_agent(cmd: AgentCommands) -> Result<()> {
 /// Run the TUI chat interface in-process
 async fn run_chat(agent: Option<String>) -> Result<()> {
     coven_tui_v2::run::run_async(agent).await
+}
+
+/// Run the human agent TUI
+async fn run_human(
+    gateway: Option<String>,
+    name: Option<String>,
+    id: Option<String>,
+) -> Result<()> {
+    let config = coven_human::HumanConfig { gateway, name, id };
+    coven_human::run_human(config).await
 }
 
 /// Handle admin subcommands

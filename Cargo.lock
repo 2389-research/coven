@@ -1024,6 +1024,7 @@ dependencies = [
  "coven-admin",
  "coven-agent",
  "coven-client",
+ "coven-human",
  "coven-link",
  "coven-log",
  "coven-matrix-rs",
@@ -1142,11 +1143,18 @@ dependencies = [
  "chrono",
  "coven-client",
  "coven-grpc",
+ "coven-link",
+ "coven-proto",
  "coven-ssh",
  "crossterm",
+ "futures",
+ "hostname 0.4.2",
  "ratatui",
  "tokio",
+ "tokio-stream",
+ "tonic",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -17,6 +17,8 @@ path = "src/lib.rs"
 # Internal crates
 coven-client.workspace = true
 coven-grpc.workspace = true
+coven-link.workspace = true
+coven-proto.workspace = true
 coven-ssh.workspace = true
 
 # TUI
@@ -25,6 +27,11 @@ crossterm.workspace = true
 
 # Async
 tokio.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+
+# gRPC
+tonic.workspace = true
 
 # Error handling
 anyhow.workspace = true
@@ -34,3 +41,7 @@ tracing.workspace = true
 
 # Time
 chrono.workspace = true
+
+# Identity
+uuid.workspace = true
+hostname.workspace = true

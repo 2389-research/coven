@@ -19,6 +19,7 @@
 //! │   ├── run                       # Run individual agent
 //! │   └── new                       # Create agent config
 //! ├── chat                          # Open TUI
+//! ├── human                         # Act as human agent
 //! ├── pack
 //! │   ├── list                      # List available packs
 //! │   ├── install <pack>            # Install a pack
