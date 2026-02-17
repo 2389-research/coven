@@ -275,19 +275,17 @@ async fn run_main_loop(
             Some(response) = response_rx.recv() => {
                 app.handle_response(response);
                 // Drain queued messages after response handling
-                if let Some(action) = app.take_queued_action() {
-                    if let Action::SendMessage(content) = action {
-                        if let Some(agent_id) = &app.selected_agent {
-                            if let Err(e) = client.send_message(agent_id, &content) {
-                                app.error = Some(format!("Failed to send: {}", e));
-                                app.streaming = None;
-                                app.mode = crate::types::Mode::Chat;
-                            }
-                        } else {
-                            app.error = Some("No agent selected".to_string());
+                if let Some(Action::SendMessage(content)) = app.take_queued_action() {
+                    if let Some(agent_id) = &app.selected_agent {
+                        if let Err(e) = client.send_message(agent_id, &content) {
+                            app.error = Some(format!("Failed to send: {}", e));
                             app.streaming = None;
                             app.mode = crate::types::Mode::Chat;
                         }
+                    } else {
+                        app.error = Some("No agent selected".to_string());
+                        app.streaming = None;
+                        app.mode = crate::types::Mode::Chat;
                     }
                 }
             }

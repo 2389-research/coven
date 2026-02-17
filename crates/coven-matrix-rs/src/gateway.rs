@@ -141,7 +141,10 @@ impl GatewayClient {
         let inner = response.into_inner();
         if !inner.success {
             let err_msg = inner.error.unwrap_or_else(|| "unknown error".to_string());
-            return Err(BridgeError::Config(format!("tool approval failed: {}", err_msg)).into());
+            return Err(BridgeError::Config(format!(
+                "tool approval failed: {}",
+                err_msg
+            )));
         }
         Ok(())
     }

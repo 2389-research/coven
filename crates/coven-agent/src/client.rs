@@ -797,8 +797,8 @@ mod tests {
     #[test]
     fn test_max_concurrent_messages_is_reasonable() {
         // Ensure the constant is a reasonable positive value
-        assert!(MAX_CONCURRENT_MESSAGES > 0);
-        assert!(MAX_CONCURRENT_MESSAGES <= 64);
+        const { assert!(MAX_CONCURRENT_MESSAGES > 0) };
+        const { assert!(MAX_CONCURRENT_MESSAGES <= 64) };
     }
 
     #[tokio::test]

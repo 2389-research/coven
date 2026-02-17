@@ -1,6 +1,9 @@
 // ABOUTME: Fold gateway client library shared between iOS and TUI
 // ABOUTME: Provides gateway communication, streaming, and state management
 
+// Allow empty lines after doc comments in generated UniFFI scaffolding code.
+#![allow(clippy::empty_line_after_doc_comments)]
+
 mod client;
 mod error;
 mod models;

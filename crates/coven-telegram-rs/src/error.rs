@@ -20,15 +20,27 @@ pub enum BridgeError {
 
     /// gRPC status error from gateway communication.
     #[error("Gateway error: {0}")]
-    Gateway(#[from] tonic::Status),
+    Gateway(Box<tonic::Status>),
 
     /// gRPC connection/transport error.
     #[error("Connection error: {0}")]
-    Connection(#[from] tonic::transport::Error),
+    Connection(Box<tonic::transport::Error>),
 
     /// IO error for file operations.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+}
+
+impl From<tonic::Status> for BridgeError {
+    fn from(e: tonic::Status) -> Self {
+        BridgeError::Gateway(Box::new(e))
+    }
+}
+
+impl From<tonic::transport::Error> for BridgeError {
+    fn from(e: tonic::transport::Error) -> Self {
+        BridgeError::Connection(Box::new(e))
+    }
 }
 
 /// Result type alias using BridgeError.

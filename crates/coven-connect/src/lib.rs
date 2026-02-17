@@ -131,10 +131,10 @@ mod tests {
 
     #[test]
     fn test_constants_are_reasonable() {
-        assert!(MAX_REGISTRATION_ATTEMPTS > 0);
-        assert!(MAX_REGISTRATION_ATTEMPTS <= 100);
-        assert!(MAX_FILE_SIZE_BYTES > 0);
-        assert!(MAX_FILE_SIZE_BYTES <= 100 * 1024 * 1024); // Max 100MB
+        const { assert!(MAX_REGISTRATION_ATTEMPTS > 0) };
+        const { assert!(MAX_REGISTRATION_ATTEMPTS <= 100) };
+        const { assert!(MAX_FILE_SIZE_BYTES > 0) };
+        const { assert!(MAX_FILE_SIZE_BYTES <= 100 * 1024 * 1024) }; // Max 100MB
     }
 
     #[test]

@@ -102,6 +102,7 @@ impl LogKind {
 #[derive(Debug, Clone)]
 struct AgentState {
     workspace: String,
+    #[allow(dead_code)]
     pid: Option<u32>,
     instance_id: Option<String>,
     status: AgentStatus,

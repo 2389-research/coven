@@ -15,13 +15,25 @@ pub enum BridgeError {
     SlackClient(#[from] slack_morphism::errors::SlackClientError),
 
     #[error("Gateway error: {0}")]
-    Gateway(#[from] tonic::Status),
+    Gateway(Box<tonic::Status>),
 
     #[error("Connection error: {0}")]
-    Connection(#[from] tonic::transport::Error),
+    Connection(Box<tonic::transport::Error>),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+}
+
+impl From<tonic::Status> for BridgeError {
+    fn from(e: tonic::Status) -> Self {
+        BridgeError::Gateway(Box::new(e))
+    }
+}
+
+impl From<tonic::transport::Error> for BridgeError {
+    fn from(e: tonic::transport::Error) -> Self {
+        BridgeError::Connection(Box::new(e))
+    }
 }
 
 pub type Result<T> = std::result::Result<T, BridgeError>;

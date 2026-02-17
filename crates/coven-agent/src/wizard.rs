@@ -768,7 +768,7 @@ fn draw_backend_step(f: &mut Frame, app: &WizardApp, area: Rect) {
         } else {
             Style::default().fg(Color::White)
         };
-        let marker = if is_selected { "" } else { "" };
+        let marker = if is_selected { ">" } else { " " };
         let text = Line::from(vec![
             Span::styled(format!(" {} ", marker), style),
             Span::styled(backend.as_str(), style),
@@ -940,7 +940,7 @@ fn draw_scope_step(f: &mut Frame, app: &WizardApp, area: Rect) {
         } else {
             Style::default().fg(Color::White)
         };
-        let marker = if is_selected { "" } else { "" };
+        let marker = if is_selected { ">" } else { " " };
 
         let mut spans = vec![
             Span::styled(format!(" {} {} ", idx + 1, marker), style),

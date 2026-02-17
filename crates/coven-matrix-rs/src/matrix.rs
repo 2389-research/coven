@@ -79,9 +79,9 @@ impl MatrixClient {
         let user_id = client
             .user_id()
             .ok_or_else(|| {
-                BridgeError::Matrix(matrix_sdk::Error::UnknownError(
+                BridgeError::Matrix(Box::new(matrix_sdk::Error::UnknownError(
                     "No user ID after login".into(),
-                ))
+                )))
             })?
             .to_owned();
 
@@ -197,7 +197,7 @@ impl MatrixClient {
         let members = room.members(RoomMemberships::ACTIVE).await.ok()?;
 
         for member in members {
-            if member.user_id() != &self.user_id {
+            if member.user_id() != self.user_id {
                 return Some(member.user_id().to_owned());
             }
         }
