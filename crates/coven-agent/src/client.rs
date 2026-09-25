@@ -261,6 +261,26 @@ pub async fn run(
         let (tx, rx) = mpsc::channel::<AgentMessage>(100);
         let outbound = tokio_stream::wrappers::ReceiverStream::new(rx);
 
+        // Queue registration BEFORE opening the stream.
+        //
+        // coven-serve's agent_stream handler awaits the client's first message
+        // before returning a Response, and gRPC only sends response headers
+        // once the handler returns. Awaiting agent_stream() before sending
+        // Register therefore deadlocks: the client waits for headers the
+        // server will not send until it has read the message the client has
+        // not sent. The channel is buffered, so this send completes with no
+        // consumer and tonic delivers it as soon as the stream opens.
+        tx.send(AgentMessage {
+            payload: Some(agent_message::Payload::Register(RegisterAgent {
+                agent_id: current_id.clone(),
+                name: current_id.clone(),
+                capabilities: metadata.capabilities.clone(),
+                metadata: Some(metadata.clone().into()),
+                protocol_features: vec!["token_usage".to_string(), "tool_states".to_string()],
+            })),
+        })
+        .await?;
+
         eprintln!("[4/5] Opening bidirectional stream...");
         let response = match client.agent_stream(outbound).await {
             Ok(r) => r,
@@ -290,19 +310,7 @@ pub async fn run(
             Err(e) => return Err(e.into()),
         };
         let mut inbound = response.into_inner();
-        eprintln!("[5/5] Stream established, sending registration...");
-
-        // Send registration
-        tx.send(AgentMessage {
-            payload: Some(agent_message::Payload::Register(RegisterAgent {
-                agent_id: current_id.clone(),
-                name: current_id.clone(),
-                capabilities: metadata.capabilities.clone(),
-                metadata: Some(metadata.clone().into()),
-                protocol_features: vec!["token_usage".to_string(), "tool_states".to_string()],
-            })),
-        })
-        .await?;
+        eprintln!("[5/5] Stream established, registration already sent.");
 
         eprintln!("Registration sent! Waiting for welcome from gateway...");
 
